@@ -49,8 +49,10 @@ pipeline {
                 sh '''
                     set -eu
                     mkdir -p /srv/build/cache/electron /srv/build/cache/electron-builder
+                    # Jenkins 容器内看到的 /var/jenkins_home，就是宿主 /srv/jenkins/home；
+                    # docker 是宿主守护进程，卷必须用宿主路径。
                     docker run --rm \
-                      -v "$WORKSPACE:/src" -w /src \
+                      -v "/srv/jenkins/home:/jn" -w "/jn/workspace/$JOB_NAME" \
                       -v /srv/build/cache/electron:/ec \
                       -v /srv/build/cache/electron-builder:/eb \
                       -e ELECTRON_CACHE=/ec \
