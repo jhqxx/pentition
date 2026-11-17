@@ -12,23 +12,28 @@ pipeline {
         pollSCM('H/3 * * * *')
     }
 
+    environment {
+        GITLAB_PROJECT_ID = '1'
+        GITLAB_API        = 'http://10.175.2.11:8082/api/v4'
+        GITLAB_PKG_NAME   = 'petition-desktop'
+        BUILD_IMAGE       = 'pbuild:wine32'
+    }
+
     stages {
         stage('Checkout') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'gitlab-root', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_PASS')]) {
-                    sh 'bash /usr/local/bin/gitlab-checkout.sh'
-                }
+                checkout scm
             }
         }
 
         stage('Verify version') {
             steps {
                 script {
-                    def version = sh(script: "sed -n 's/^ *\"version\": *\"\\([^\"]*\\)\".*/\\1/p' source/package.json | head -1", returnStdout: true).trim()
+                    def version = sh(script: "sed -n 's/^ *\"version\": *\"\\([^\"]*\\)\".*/\\1/p' package.json | head -1", returnStdout: true).trim()
                     if (!version) {
-                        error 'source/package.json 里读不到 version'
+                        error 'package.json 里读不到 version'
                     }
-                    def tag = sh(script: "git -C source fetch --tags --quiet 2>/dev/null || true; git -C source describe --tags --exact-match 2>/dev/null || true", returnStdout: true).trim()
+                    def tag = sh(script: "git fetch --tags --quiet 2>/dev/null || true; git describe --tags --exact-match 2>/dev/null || true", returnStdout: true).trim()
                     env.APP_VERSION = version
                     env.APP_TAG = tag
                     if (tag && tag != "v${version}") {
@@ -39,22 +44,46 @@ pipeline {
             }
         }
 
-        stage('Build in VM (KVM + wine)') {
+        stage('Build Windows') {
             steps {
-                sh 'bash /usr/local/bin/build-in-vm.sh'
+                sh '''
+                    set -eu
+                    mkdir -p /srv/build/cache/electron /srv/build/cache/electron-builder
+                    docker run --rm \
+                      -v "$WORKSPACE:/src" -w /src \
+                      -v /srv/build/cache/electron:/ec \
+                      -v /srv/build/cache/electron-builder:/eb \
+                      -e ELECTRON_CACHE=/ec \
+                      -e ELECTRON_BUILDER_CACHE=/eb \
+                      -e WINEDEBUG=-all \
+                      -e HTTP_PROXY=http://172.17.0.1:17897 \
+                      -e HTTPS_PROXY=http://172.17.0.1:17897 \
+                      -e NO_PROXY=10.175.2.0/24,localhost,127.0.0.1,registry.npmmirror.com \
+                      "$BUILD_IMAGE" bash -lc "pnpm install --frozen-lockfile --reporter=append-only | tail -5 && pnpm build && pnpm exec electron-builder --win nsis portable --x64 --publish never"
+                '''
             }
         }
 
         stage('Archive') {
             steps {
-                archiveArtifacts artifacts: 'source/release/*.exe', allowEmptyArchive: false
+                archiveArtifacts artifacts: 'release/*.exe', allowEmptyArchive: false
             }
         }
 
         stage('Upload to GitLab') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'gitlab-root', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_PASS')]) {
-                    sh 'bash /usr/local/bin/gitlab-upload.sh'
+                withCredentials([string(credentialsId: 'gitlab-token', variable: 'GITLAB_TOKEN')]) {
+                    sh '''
+                        set -eu
+                        for f in release/*.exe; do
+                          name=$(basename "$f")
+                          url="$GITLAB_API/projects/$GITLAB_PROJECT_ID/packages/generic/$GITLAB_PKG_NAME/$APP_VERSION/$name"
+                          code=$(curl -s -o /tmp/upload.log -w '%{http_code}' --upload-file "$f" \
+                                 -H "PRIVATE-TOKEN: $GITLAB_TOKEN" "$url")
+                          echo "upload $name => HTTP $code"
+                          [ "$code" = "201" ] || { cat /tmp/upload.log; exit 1; }
+                        done
+                    '''
                 }
             }
         }
@@ -64,50 +93,37 @@ pipeline {
                 expression { return env.APP_TAG?.trim() }
             }
             steps {
-                withCredentials([usernamePassword(credentialsId: 'gitlab-root', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_PASS')]) {
-                    sh '''#!/bin/bash
-set -euo pipefail
-API="http://127.0.0.1:8082/api/v4/projects/lbxq%2Fpentition-desktop"
-TAG="$APP_TAG"
-VER="${TAG#v}"
-PACKAGES="http://10.175.2.11:8082/lbxq/pentition-desktop/-/packages"
-DESC="PetitionDesktop ${VER}：Windows NSIS 安装包与免安装版由 Jenkins 构建，产物见包仓库 ${PACKAGES}；macOS dmg 在 mac 本机 pnpm build:mac 产出。"
-AUTH="PRIVATE-TOKEN: $GIT_PASS"
+                withCredentials([string(credentialsId: 'gitlab-token', variable: 'GITLAB_TOKEN')]) {
+                    sh '''
+                        set -eu
+                        TAG="$APP_TAG"
+                        VER="${TAG#v}"
+                        PKG="http://10.175.2.11:8082/lbxq/pentition-desktop/-/packages"
+                        DESC="PetitionDesktop ${VER}：Windows 安装包与免安装版由 Jenkins 构建（wine 交叉编译），产物见包仓库 ${PKG}。"
+                        BODY=$(printf '{"name":"%s","tag_name":"%s","description":"%s"}' "$TAG" "$TAG" "$DESC")
 
-body=$(cat <<JSON
-{"name":"${TAG}","tag_name":"${TAG}","description":"${DESC}"}
-JSON
-)
+                        code=$(curl -s -o /tmp/rel.json -w '%{http_code}' -X POST "$GITLAB_API/projects/$GITLAB_PROJECT_ID/releases" \
+                              -H "PRIVATE-TOKEN: $GITLAB_TOKEN" -H 'Content-Type: application/json' --data "$BODY")
+                        if [ "$code" = "201" ]; then
+                          echo "Release $TAG 已创建"
+                        elif [ "$code" = "409" ]; then
+                          curl -s -o /dev/null -X PUT "$GITLAB_API/projects/$GITLAB_PROJECT_ID/releases/$TAG" \
+                            -H "PRIVATE-TOKEN: $GITLAB_TOKEN" -H 'Content-Type: application/json' --data "$BODY"
+                          echo "Release $TAG 已存在，已更新"
+                        else
+                          echo "创建 Release 失败 HTTP $code"; cat /tmp/rel.json; exit 1
+                        fi
 
-code=$(curl -s -o /tmp/release.json -w '%{http_code}' -X POST "$API/releases" \
-  -H "$AUTH" -H 'Content-Type: application/json' --data "$body")
-
-if [ "$code" = "201" ]; then
-  echo "GitLab Release $TAG 已创建"
-elif [ "$code" = "409" ]; then
-  echo "GitLab Release $TAG 已存在，更新描述"
-  curl -s -o /dev/null -X PUT "$API/releases/$TAG" -H "$AUTH" \
-    -H 'Content-Type: application/json' --data "$body"
-else
-  echo "创建 Release 失败（HTTP $code）：$(head -c 300 /tmp/release.json)"
-  exit 1
-fi
-
-linkBody=$(cat <<JSON
-{"name":"Windows 安装包 / 免安装版（包仓库）","url":"${PACKAGES}","link_type":"other"}
-JSON
-)
-linkCode=$(curl -s -o /tmp/link.json -w '%{http_code}' -X POST "$API/releases/$TAG/assets/links" \
-  -H "$AUTH" -H 'Content-Type: application/json' --data "$linkBody")
-if [ "$linkCode" = "201" ]; then
-  echo "Release 资产链接已添加"
- elif [ "$linkCode" = "409" ]; then
-  echo "Release 资产链接已存在"
-else
-  echo "添加资产链接失败（HTTP $linkCode）：$(head -c 300 /tmp/link.json)"
-  exit 1
-fi
-'''
+                        LINK=$(printf '{"name":"Windows 安装包 / 免安装版","url":"%s","link_type":"other"}' "$PKG")
+                        lcode=$(curl -s -o /tmp/link.json -w '%{http_code}' -X POST \
+                              "$GITLAB_API/projects/$GITLAB_PROJECT_ID/releases/$TAG/assets/links" \
+                              -H "PRIVATE-TOKEN: $GITLAB_TOKEN" -H 'Content-Type: application/json' --data "$LINK")
+                        case "$lcode" in
+                          201) echo "Release 资产链接已添加" ;;
+                          409) echo "Release 资产链接已存在" ;;
+                          *) echo "添加资产链接失败 HTTP $lcode"; cat /tmp/link.json; exit 1 ;;
+                        esac
+                    '''
                 }
             }
         }
@@ -118,7 +134,7 @@ fi
             echo "Pipeline finished: ${currentBuild.currentResult}"
         }
         failure {
-            echo "构建失败，查看完整日志：${env.BUILD_URL}console"
+            echo "构建失败，完整日志：${env.BUILD_URL}console"
         }
     }
 }
