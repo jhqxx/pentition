@@ -10,9 +10,9 @@ pipeline {
             }
         }
 
-        stage('Build Windows (native, NSIS + portable)') {
+        stage('Build in VM (KVM + wine)') {
             steps {
-                sh 'bash /usr/local/bin/build-pentition-nsis.sh'
+                sh 'bash /usr/local/bin/build-in-vm.sh'
             }
         }
 
