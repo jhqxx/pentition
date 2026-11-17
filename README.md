@@ -28,11 +28,11 @@
 
 ## 下载
 
-到 [Releases](https://github.com/jhqxx/mall-windows/releases) 下载（GitHub Actions 在 macOS / Windows 真机上自动构建）。
+Windows 安装包由内网 Jenkins 构建后发布到 [GitLab 包仓库](http://10.175.2.11:8082/lbxq/pentition-desktop/-/packages)；macOS 的 dmg 在 macOS 本机构建。
 
 | 文件 | 用途 |
 | --- | --- |
-| `PetitionDesktop-0.2.7-arm64.dmg` | macOS（Apple Silicon），拖进 Applications |
+| `PetitionDesktop-0.2.7-arm64.dmg` | macOS（Apple Silicon），拖进 Applications，本机 `pnpm build:mac` 产出 |
 | `PetitionDesktop.Setup.0.2.7.exe` | Windows 安装包：装到本机、建开始菜单/桌面快捷方式、可在「应用和功能」里卸载 |
 | `PetitionDesktop-0.2.7-portable.exe` | Windows **免安装**：单个 exe，双击即用，不写注册表，删掉文件就干净 |
 
@@ -104,11 +104,28 @@ pnpm build:mac
 pnpm build:win
 ```
 
-推 tag 会触发 GitHub Actions 双平台构建并把安装包挂到 Release：
+推 tag 会触发 Jenkins 构建，产物发布到 GitLab 包仓库：
 
 ```bash
-git tag v0.2.0 && git push origin v0.2.0
+git tag v0.2.8 && git push origin v0.2.8
 ```
+
+## 持续集成
+
+Jenkins 任务 `pentition-desktop`（http://10.175.2.11:8080/job/pentition-desktop/）从本仓库的 `Jenkinsfile` 跑流水线：
+
+| 阶段 | 做什么 |
+| --- | --- |
+| Checkout | 用凭据 `gitlab-root` 拉取本仓库当前分支 |
+| Verify version | 校验 `package.json` 版本与 `vX.Y.Z` tag 一致，避免发错版本 |
+| Build in VM | 把源码同步进 KVM 里的 Windows 虚拟机（`/usr/local/bin/build-in-vm.sh`），用 wine 跑 `pnpm build` + `electron-builder --win --x64`，产出 NSIS 安装包与免安装 exe |
+| Archive | 把 `source/release/*.exe` 归档为构建产物（Jenkins 页面可直接下载） |
+| Upload to GitLab | 用 `gitlab-upload.sh` 传到 GitLab 通用包仓库 |
+| Release | 打 tag 的构建额外创建 GitLab Release，并把上面两个 exe 挂成 Release 资产链接 |
+
+触发方式：push 到 `master` 由 Jenkins 轮询发现（`pollSCM`，约 3 分钟内），打 tag 则用 `git push origin vX.Y.Z`。构建日志与产物都在 Jenkins 任务页。
+
+macOS 的 dmg 不在流水线里（Windows VM 里打不了 mac 包），仍在 mac 本机 `pnpm build:mac`。
 
 未签名说明：macOS 首次打开需右键 →「打开」；Windows 若弹 SmartScreen，点「更多信息」→「仍要运行」。
 
