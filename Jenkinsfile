@@ -49,6 +49,8 @@ pipeline {
                 sh '''
                     set -eu
                     mkdir -p /srv/build/cache/electron /srv/build/cache/electron-builder
+                    # 清掉上一次构建的产物，避免旧文件名（含空格）混进上传列表
+                    rm -rf release
                     # Jenkins 容器内看到的 /var/jenkins_home，就是宿主 /srv/jenkins/home；
                     # docker 是宿主守护进程，卷必须用宿主路径。
                     docker run --rm \
