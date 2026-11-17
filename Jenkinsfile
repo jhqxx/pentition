@@ -60,6 +60,8 @@ pipeline {
                       -e ELECTRON_CACHE=/ec \
                       -e ELECTRON_BUILDER_CACHE=/eb \
                       -e WINEDEBUG=-all \
+                      -e ELECTRON_GET_USE_PROXY=1 \
+                      -e GLOBAL_AGENT_HTTPS_PROXY=http://172.17.0.1:17897 \
                       -e HTTP_PROXY=http://172.17.0.1:17897 \
                       -e HTTPS_PROXY=http://172.17.0.1:17897 \
                       -e NO_PROXY=10.175.2.0/24,localhost,127.0.0.1,registry.npmmirror.com \
