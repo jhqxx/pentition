@@ -79,7 +79,9 @@ pipeline {
                         set -eu
                         for f in release/*.exe; do
                           name=$(basename "$f")
-                          url="$GITLAB_API/projects/$GITLAB_PROJECT_ID/packages/generic/$GITLAB_PKG_NAME/$APP_VERSION/$name"
+                          # 文件名里的空格必须编码，否则 curl 会当成非法 URL（HTTP 000）
+                          encoded=$(printf '%s' "$name" | sed 's/ /%20/g')
+                          url="$GITLAB_API/projects/$GITLAB_PROJECT_ID/packages/generic/$GITLAB_PKG_NAME/$APP_VERSION/$encoded"
                           code=$(curl -s -o /tmp/upload.log -w '%{http_code}' --upload-file "$f" \
                                  -H "PRIVATE-TOKEN: $GITLAB_TOKEN" "$url")
                           echo "upload $name => HTTP $code"
