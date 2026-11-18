@@ -21,7 +21,16 @@ pipeline {
         pollSCM('H/3 * * * *')
     }
 
+    parameters {
+        booleanParam(name: 'RUN_API_TEST', defaultValue: false,
+                     description: '运行 Apifox 接口冒烟门禁（默认关闭；打开需要凭据 apifox-token 且套件已建好）')
+        string(name: 'APIFOX_SUITE_ID', defaultValue: '', description: 'Apifox 测试套件 ID（留空则只校验 CLI 可用性）')
+        string(name: 'APIFOX_PROJECT_ID', defaultValue: '', description: 'Apifox 项目 ID')
+        string(name: 'APIFOX_ENV_ID', defaultValue: '', description: 'Apifox 环境 ID')
+    }
+
     environment {
+        APIFOX_IMAGE      = 'pbuild/apifox-cli:2.2.12'
         GITLAB_PROJECT_ID = '1'
         GITLAB_API        = 'http://10.175.2.11:8082/api/v4'
         GITLAB_PKG_NAME   = 'petition-desktop'
@@ -151,6 +160,58 @@ pipeline {
                           fi
                         done
 '''
+                }
+            }
+        }
+
+        // 接口冒烟门禁：默认关闭（parameters.RUN_API_TEST=false 时整段跳过，不影响 P0 绿线）
+        // 打开后即使失败也只把构建标记为 UNSTABLE，不阻断打包产物的产出
+        stage('API 冒烟门禁') {
+            when {
+                expression { return params.RUN_API_TEST }
+            }
+            steps {
+                catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+                    script {
+                        def suiteId   = params.APIFOX_SUITE_ID?.trim()
+                        def projectId = params.APIFOX_PROJECT_ID?.trim()
+                        def envId     = params.APIFOX_ENV_ID?.trim()
+
+                        if (!suiteId) {
+                            // 最小验证模式：不连 Apifox，只确认镜像里的 CLI 可用
+                            echo 'APIFOX_SUITE_ID 为空 → 最小验证模式（仅校验 CLI 版本）'
+                            sh 'docker run --rm "$APIFOX_IMAGE" apifox --version'
+                        } else {
+                            withCredentials([string(credentialsId: 'apifox-token', variable: 'APIFOX_TOKEN')]) {
+                                withEnv([
+                                    "SUITE_ID=${suiteId}",
+                                    "PROJECT_ID=${projectId}",
+                                    "ENVIRONMENT_ID=${envId}"
+                                ]) {
+                                    sh '''
+                                        set -eu
+                                        mkdir -p "$WORKSPACE/test-reports"
+                                        docker run --rm \
+                                          -e APIFOX_TOKEN \
+                                          -e SUITE_ID -e PROJECT_ID -e ENVIRONMENT_ID \
+                                          -v "$WORKSPACE/test-reports:/reports" \
+                                          "$APIFOX_IMAGE" bash -lc '
+                                            apifox login --with-token "$APIFOX_TOKEN" &&
+                                            apifox test-suite run "$SUITE_ID" \
+                                              --project "$PROJECT_ID" --environment "$ENVIRONMENT_ID" \
+                                              --reporters cli,json,junit \
+                                              --out-dir /reports --upload-report
+                                          '
+                                    '''
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            post {
+                always {
+                    junit allowEmptyResults: true, testResults: 'test-reports/*.xml'
                 }
             }
         }
