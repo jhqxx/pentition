@@ -22,7 +22,10 @@ variables:
   GITLAB_PKG_NAME: "petition-desktop"
   BUILD_IMAGE: "pbuild:wine32"
   APIFOX_IMAGE: "pbuild/apifox-cli:2.2.12"
-  # electron-builder / electron 下载走代理
+  # 依赖与二进制一律走国内镜像（直连），仅真正需要出海的走代理
+  npm_config_registry: "https://registry.npmmirror.com"
+  ELECTRON_MIRROR: "https://registry.npmmirror.com/-/binary/electron/"
+  ELECTRON_BUILDER_BINARIES_MIRROR: "https://registry.npmmirror.com/-/binary/electron-builder-binaries/"
   ELECTRON_GET_USE_PROXY: "1"
   GLOBAL_AGENT_HTTPS_PROXY: "http://127.0.0.1:7897"
   HTTP_PROXY: "http://127.0.0.1:7897"
