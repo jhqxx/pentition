@@ -7,3 +7,4 @@ release/
 
 # 原项目参考源码，不入库
 原项目/
+.pnpm-store/
