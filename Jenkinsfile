@@ -131,16 +131,24 @@ pipeline {
                           echo "创建 Release 失败 HTTP $code"; cat /tmp/rel.json; exit 1
                         fi
 
-                        LINK=$(printf '{"name":"Windows 安装包 / 免安装版","url":"%s","link_type":"other"}' "$PKG")
-                        lcode=$(curl -s -o /tmp/link.json -w '%{http_code}' -X POST \
-                              "$GITLAB_API/projects/$GITLAB_PROJECT_ID/releases/$TAG/assets/links" \
-                              -H "PRIVATE-TOKEN: $GITLAB_TOKEN" -H 'Content-Type: application/json' --data "$LINK")
-                        case "$lcode" in
-                          201) echo "Release 资产链接已添加" ;;
-                          409) echo "Release 资产链接已存在" ;;
-                          *) echo "添加资产链接失败 HTTP $lcode"; cat /tmp/link.json; exit 1 ;;
-                        esac
-                    '''
+                        for kind in Setup portable; do
+                          if [ "$kind" = "Setup" ]; then
+                            fname="PetitionDesktop-Setup-$VER.exe"
+                          else
+                            fname="PetitionDesktop-$VER-portable.exe"
+                          fi
+                          ename=$(printf '%s' "$fname" | sed 's/ /%20/g')
+                          url="http://10.175.2.11:8082/lbxq/pentition-desktop/-/packages"
+                          LINK=$(printf '{"name":"%s","url":"%s/$GITLAB_PKG_NAME/%s/%s","link_type":"package"}' "$fname" "$url" "$VER" "$ename")
+                          lcode=$(curl -s -o /tmp/link.json -w '%{http_code}' -X POST "$GITLAB_API/projects/$GITLAB_PROJECT_ID/releases/$TAG/assets/links" \
+                                -H "PRIVATE-TOKEN: $GITLAB_TOKEN" -H 'Content-Type: application/json' --data "$LINK")
+                          if [ "$lcode" = "201" ] || [ "$lcode" = "409" ]; then
+                            echo "Release 资产链接 $fname => HTTP $lcode"
+                          else
+                            echo "添加资产链接失败 $fname HTTP $lcode"; cat /tmp/link.json
+                          fi
+                        done
+'''
                 }
             }
         }
