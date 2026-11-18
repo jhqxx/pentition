@@ -180,6 +180,22 @@ stage('API 冒烟门禁') {
 | P3 | 资源评估 / 工单选型 / Apifox 门禁结论 | ✅ 完成（本文档） |
 | P4 | Codes 激活 | ⏳ 等租户 ID（http://10.175.2.11:8010/codes/） |
 | P4 | Apifox 真套件接入 | ⏳ 等 Apifox 项目/套件/环境 ID + Jenkins 凭据 `apifox-token` |
-| P5 | Zadig 加一条「Electron 产物分发」工作流 | 待排（`demo-task` 已打样通过） |
+| P5 | Zadig 加一条项目级工作流 | ✅ 完成（`exe-artifact-check`：构建 Pod 直连 GitLab 校验 exe 包，task 2 passed） |
 
 **Apifox 最小验证已闭环**：镜像 `pbuild/apifox-cli:2.2.12` 已构建，Jenkinsfile 已加门控 stage，构建 #23 以 `RUN_API_TEST=true` 跑通并输出 `2.2.12`，构建 #22（默认关闭）仍是 SUCCESS —— 开关两侧都验证过，不会拖累 P0 绿线。
+
+**Zadig 项目级工作流已跑通**：项目 `demo` 下的 `exe-artifact-check`（stage `verify` / freestyle job `check-package`）在 Zadig 的 k8s 构建 Pod 里直连 GitLab，拉 `/api/v4/projects/1/packages` 并断言包列表非空，两次运行均 `passed`。它证明的不只是"能跑 hello world"，而是**构建 Pod 的集群网络能打通 GitLab 与产物仓库**，后续要把 `pnpm install + electron-builder` 搬进 Zadig 只需换 `runtime.image` 与挂缓存。
+
+创建/运行的 API（基础版必须带 `concurrency_limit: -1`）：
+
+```bash
+TOKEN=$(cat /srv/zadig-token.txt)
+curl -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d @/srv/zadig-artifact-check.json \
+  http://127.0.0.1:30080/api/aslan/workflow/v4                    # 建工作流
+curl -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"project":"demo","name":"exe-artifact-check","concurrency_limit":-1}' \
+  http://127.0.0.1:30080/api/aslan/workflow/v4/workflowtask       # 运行
+curl -H "Authorization: Bearer $TOKEN" \
+  http://127.0.0.1:30080/api/aslan/workflow/v4/workflowtask/workflow/exe-artifact-check/task/2
+```
