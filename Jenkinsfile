@@ -115,7 +115,9 @@ pipeline {
                         set -eu
                         TAG="$APP_TAG"
                         VER="${TAG#v}"
-                        PKG="http://10.175.2.11:8082/lbxq/pentition-desktop/-/packages"
+                        PKG="http://10.175.2.11:8082/lbxq/petition-desktop/-/packages"
+                        # 资产链接必须指向 API 通用包直链：UI 路径 /-/packages/... 对匿名用户会 302 到登录页
+                        DL="http://10.175.2.11:8082/api/v4/projects/$GITLAB_PROJECT_ID/packages/generic/$GITLAB_PKG_NAME/$VER"
                         DESC="PetitionDesktop ${VER}：Windows 安装包与免安装版由 Jenkins 构建（wine 交叉编译），产物见包仓库 ${PKG}。"
                         BODY=$(printf '{"name":"%s","tag_name":"%s","description":"%s"}' "$TAG" "$TAG" "$DESC")
 
@@ -138,7 +140,7 @@ pipeline {
                             fname="PetitionDesktop-$VER-portable.exe"
                           fi
                           ename=$(printf '%s' "$fname" | sed 's/ /%20/g')
-                          url="http://10.175.2.11:8082/lbxq/pentition-desktop/-/packages"
+                          url="$DL"
                           LINK=$(printf '{"name":"%s","url":"%s/$GITLAB_PKG_NAME/%s/%s","link_type":"package"}' "$fname" "$url" "$VER" "$ename")
                           lcode=$(curl -s -o /tmp/link.json -w '%{http_code}' -X POST "$GITLAB_API/projects/$GITLAB_PROJECT_ID/releases/$TAG/assets/links" \
                                 -H "PRIVATE-TOKEN: $GITLAB_TOKEN" -H 'Content-Type: application/json' --data "$LINK")
