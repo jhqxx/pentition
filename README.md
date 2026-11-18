@@ -32,9 +32,9 @@ Windows 安装包由内网 Jenkins 构建后发布到 [GitLab 包仓库](http://
 
 | 文件 | 用途 |
 | --- | --- |
-| `PetitionDesktop-0.2.7-arm64.dmg` | macOS（Apple Silicon），拖进 Applications，本机 `pnpm build:mac` 产出 |
-| `PetitionDesktop.Setup.0.2.7.exe` | Windows 安装包：装到本机、建开始菜单/桌面快捷方式、可在「应用和功能」里卸载 |
-| `PetitionDesktop-0.2.7-portable.exe` | Windows **免安装**：单个 exe，双击即用，不写注册表，删掉文件就干净 |
+| `PetitionDesktop-0.2.8-arm64.dmg` | macOS（Apple Silicon），拖进 Applications，本机 `pnpm build:mac` 产出 |
+| `PetitionDesktop.Setup.0.2.8.exe` | Windows 安装包：装到本机、建开始菜单/桌面快捷方式、可在「应用和功能」里卸载 |
+| `PetitionDesktop-0.2.8-portable.exe` | Windows **免安装**：单个 exe，双击即用，不写注册表，删掉文件就干净 |
 
 免安装版与安装版跑同一份代码、同样把数据存在 `%APPDATA%\PetitionDesktop\`，区别只在「有没有往系统里装东西」。
 
