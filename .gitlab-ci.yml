@@ -1,12 +1,21 @@
-# GitLab 原生 Runner 流水线（替代 Jenkinsfile）
+# GitLab 原生 Runner 流水线
 # Runner：lab-docker-runner（docker executor，host 网络，镜像 pbuild:wine32 本地复用）
 # 宿主缓存：/srv/build/cache/{electron,electron-builder,pnpm} → 容器内 ~/.cache/*
+#
+# 分支与发布约定：
+#   dev / master  —— 只跑 verify-version（版本自检），不构建、不发布
+#   Merge Request —— 只跑 verify-version
+#   tag vX.Y.Z    —— 全量：verify → build → upload → release（唯一的发布入口）
+#   Web 手动      —— 可手动跑构建做验证，但不会上传/发布
 
 workflow:
   rules:
     - if: $CI_COMMIT_TAG
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_BRANCH == "master"
+    - if: $CI_COMMIT_BRANCH == "dev"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_PIPELINE_SOURCE == "web"
+    - when: never
 
 stages:
   - verify
@@ -47,6 +56,9 @@ verify-version:
       if [ -n "${CI_COMMIT_TAG:-}" ] && [ "$CI_COMMIT_TAG" != "v$VERSION" ]; then
         echo "tag $CI_COMMIT_TAG 与 package.json 版本 $VERSION 不一致"; exit 1
       fi
+      if [ -z "${CI_COMMIT_TAG:-}" ]; then
+        echo "当前不是 tag 流水线（$CI_COMMIT_REF_NAME）→ 只做版本自检，不构建、不发布"
+      fi
       echo "APP_VERSION=$VERSION" > version.env
       echo "APP_TAG=${CI_COMMIT_TAG:-}" >> version.env
       cat version.env
@@ -55,7 +67,7 @@ verify-version:
       dotenv: version.env
     expire_in: 1 day
 
-# ---------- 2. Windows 构建 ----------
+# ---------- 2. Windows 构建（仅 tag；Web 可手动试跑） ----------
 build-windows:
   stage: build
   needs: ["verify-version"]
@@ -74,8 +86,12 @@ build-windows:
       - release/*.blockmap
     expire_in: 1 week
     when: always
+  rules:
+    - if: $CI_COMMIT_TAG
+    - if: $CI_PIPELINE_SOURCE == "web"
+      when: manual
 
-# ---------- 3. 上传到 GitLab 通用包仓库 ----------
+# ---------- 3. 上传到 GitLab 通用包仓库（仅 tag = 发布） ----------
 upload-package:
   stage: package
   needs: ["verify-version", "build-windows"]
@@ -93,7 +109,6 @@ upload-package:
       done
   rules:
     - if: $CI_COMMIT_TAG
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
 # ---------- 4. 创建 Release 并挂资产链接（仅 tag） ----------
 release:
@@ -165,5 +180,6 @@ api-smoke:
       junit: test-reports/*.xml
     expire_in: 1 week
   rules:
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_BRANCH == "master" || $CI_COMMIT_BRANCH == "dev"
       when: manual
+    - when: never
