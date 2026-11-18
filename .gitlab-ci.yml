@@ -1,7 +1,6 @@
 # GitLab 原生 Runner 流水线（替代 Jenkinsfile）
 # Runner：lab-docker-runner（docker executor，host 网络，镜像 pbuild:wine32 本地复用）
 # 宿主缓存：/srv/build/cache/{electron,electron-builder,pnpm} → 容器内 ~/.cache/*
-# 代理：host 网络 → 直接用宿主 Clash 127.0.0.1:7897；内网与可直连站点走 NO_PROXY
 
 workflow:
   rules:
@@ -22,15 +21,10 @@ variables:
   GITLAB_PKG_NAME: "petition-desktop"
   BUILD_IMAGE: "pbuild:wine32"
   APIFOX_IMAGE: "pbuild/apifox-cli:2.2.12"
-  # 依赖与二进制一律走国内镜像（直连），仅真正需要出海的走代理
+  # 依赖与二进制一律走国内镜像（直连），流水线内不配置任何代理
   npm_config_registry: "https://registry.npmmirror.com"
   ELECTRON_MIRROR: "https://registry.npmmirror.com/-/binary/electron/"
   ELECTRON_BUILDER_BINARIES_MIRROR: "https://registry.npmmirror.com/-/binary/electron-builder-binaries/"
-  ELECTRON_GET_USE_PROXY: "1"
-  GLOBAL_AGENT_HTTPS_PROXY: "http://127.0.0.1:7897"
-  HTTP_PROXY: "http://127.0.0.1:7897"
-  HTTPS_PROXY: "http://127.0.0.1:7897"
-  NO_PROXY: "10.175.2.0/24,localhost,127.0.0.1,registry.npmmirror.com,cdn.npmmirror.com,gitlab.com,.gitlab.com,registry.gitlab.com"
   GIT_DEPTH: "20"
 
 default:
