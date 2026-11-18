@@ -165,7 +165,7 @@ stage('API 冒烟门禁') {
 
 ### 3.3 注意事项
 
-- **出网**：服务器要能到 apifox 云（走代理 `172.17.0.1:17897`）；不能出网就用自托管 Runner（`apifox runner`）在内网执行。
+- **出网**：服务器要能到 apifox 云（走代理 `127.0.0.1:7897`）；不能出网就用自托管 Runner（`apifox runner`）在内网执行。
 - **触发条件**：只对「后端接口有改动的 MR」触发，别每次打包都跑。
 - **报告归档**：`--upload-report` 才会进 Apifox 云端；本地 `test-reports/` 同时归档到构建产物。
 - **凭据**：Jenkins 里要建 `apifox-token`（Secret text），否则打开开关会直接报 `CredentialsNotFoundException`。
@@ -245,14 +245,38 @@ docker daemon 全局挂了 `HTTPS_PROXY=http://127.0.0.1:7897`，把 `registry.g
 
 修复：`/etc/systemd/system/docker.service.d/proxy.conf` 的 `NO_PROXY` 追加 `gitlab.com,.gitlab.com,registry.gitlab.com,registry.npmmirror.com,cdn.npmmirror.com`，然后 `systemctl daemon-reload && systemctl restart docker`，再 `docker pull registry.gitlab.com/gitlab-org/gitlab-runner/gitlab-runner-helper:x86_64-v19.5.3` 一次成功。
 
-### 5.3 代理端口为什么有两个
+### 5.3 代理只用一个端口：127.0.0.1:7897
 
-| 端口 | 谁在监听 | 给谁用 |
-| --- | --- | --- |
-| `127.0.0.1:7897` | Clash `verge-mihomo`（只绑回环） | 宿主进程（docker daemon、curl、git） |
-| `172.17.0.1:17897` | `socat TCP-LISTEN:17897 ... TCP:127.0.0.1:7897` | 桥接网络里的容器（容器内 `127.0.0.1` 指向容器自己，必须用网关 IP） |
+Clash Verge（`verge-mihomo`，pid 4999）是**宿主机上的原生进程**，不是容器，只监听 `127.0.0.1:7897`（另有 DNS `127.0.0.1:1053`）。
 
-Runner 用 `network_mode = "host"`，与宿主共享网络命名空间，所以 **CI 里代理直接写 `127.0.0.1:7897`**，不要写 17897。
+原先还有一个 `172.17.0.1:17897`，是 `proxy-relay.service` 里的 `socat` 把 docker 桥接网关转发到 7897，专门给**桥接网络**的容器用。现已删除：
+
+| 项 | 处理 |
+| --- | --- |
+| `systemctl stop proxy-relay.service` | 已停止 |
+| `systemctl disable proxy-relay.service` | 已取消开机自启（`multi-user.target.wants` 里的软链已删） |
+| 端口 17897 | 已彻底释放，全系统无引用 |
+
+**为什么可以删**：本项目所有访问外网的容器都不走桥接网络——
+
+- GitLab Runner：`network_mode = "host"`，与宿主共享网络命名空间，`127.0.0.1:7897` 直接可达；
+- GitLab 容器：不访问外网，也无 `HTTP(S)_PROXY` 环境变量；
+- 构建镜像 `pbuild:wine32`：同样以 host 网络运行。
+
+**如果将来真要用桥接容器出网**，在 7897 之外只补一条 `docker run --network host`，或临时执行：
+
+```bash
+socat TCP-LISTEN:17897,fork,reuseaddr,bind=172.17.0.1 TCP:127.0.0.1:7897 &
+```
+
+**内网一律直连**：`10.175.2.0/24` 已在 docker 的 `NO_PROXY` 里；实测宿主、GitLab 容器、`pbuild:wine32` 访问 `http://10.175.2.11:8082/` 均返回 302，耗时 15~30ms，证明内网流量不经代理。
+
+最终 docker daemon 代理配置（`/etc/systemd/system/docker.service.d/proxy.conf`）：
+
+```
+[Service]
+Environment="HTTP_PROXY=http://127.0.0.1:7897" "HTTPS_PROXY=http://127.0.0.1:7897" "NO_PROXY=localhost,127.0.0.1,10.175.2.0/24,gitlab,jenkins,zadig,.local,gitlab.com,.gitlab.com,registry.gitlab.com,registry.npmmirror.com,cdn.npmmirror.com"
+```
 
 ### 5.4 `.gitlab-ci.yml` 要点
 
