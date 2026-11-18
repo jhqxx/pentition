@@ -6,9 +6,18 @@ pipeline {
         timeout(time: 90, unit: 'MINUTES')
         buildDiscarder(logRotator(numToKeepStr: '30', artifactNumToKeepStr: '10'))
         disableConcurrentBuilds()
+        // 让 gitlab-plugin 能把构建状态回写到 GitLab（commit status / MR 状态）
+        gitLabConnection('gitlab-lab')
     }
 
     triggers {
+        // GitLab webhook 触发：端点 http://10.175.2.11:8080/project/petition-desktop
+        // secretToken 与 GitLab 侧 Webhook 的 "Secret token" 必须一致
+        gitlab(triggerOnPush: true,
+               triggerOnMergeRequest: true,
+               branchFilterType: 'All',
+               secretToken: 'petition-ci-2026')
+        // 兜底：webhook 万一丢包，每 3 分钟轮询一次
         pollSCM('H/3 * * * *')
     }
 
