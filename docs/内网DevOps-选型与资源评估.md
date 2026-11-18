@@ -245,38 +245,34 @@ docker daemon 全局挂了 `HTTPS_PROXY=http://127.0.0.1:7897`，把 `registry.g
 
 修复：`/etc/systemd/system/docker.service.d/proxy.conf` 的 `NO_PROXY` 追加 `gitlab.com,.gitlab.com,registry.gitlab.com,registry.npmmirror.com,cdn.npmmirror.com`，然后 `systemctl daemon-reload && systemctl restart docker`，再 `docker pull registry.gitlab.com/gitlab-org/gitlab-runner/gitlab-runner-helper:x86_64-v19.5.3` 一次成功。
 
-### 5.3 代理只用一个端口：127.0.0.1:7897
+### 5.3 代理：服务器 Clash 已容器化（mihomo，127.0.0.1:7897）
 
-Clash Verge（`verge-mihomo`，pid 4999）是**宿主机上的原生进程**，不是容器，只监听 `127.0.0.1:7897`（另有 DNS `127.0.0.1:1053`）。
+服务器原来的桌面版 Clash Verge（`/usr/bin/clash-verge` + `verge-mihomo`，桌面进程）已停用，改为 Docker 容器运行同一份订阅配置：
 
-原先还有一个 `172.17.0.1:17897`，是 `proxy-relay.service` 里的 `socat` 把 docker 桥接网关转发到 7897，专门给**桥接网络**的容器用。现已删除：
-
-| 项 | 处理 |
+| 项 | 值 |
 | --- | --- |
-| `systemctl stop proxy-relay.service` | 已停止 |
-| `systemctl disable proxy-relay.service` | 已取消开机自启（`multi-user.target.wants` 里的软链已删） |
-| 端口 17897 | 已彻底释放，全系统无引用 |
-
-**为什么可以删**：本项目所有访问外网的容器都不走桥接网络——
-
-- GitLab Runner：`network_mode = "host"`，与宿主共享网络命名空间，`127.0.0.1:7897` 直接可达；
-- GitLab 容器：不访问外网，也无 `HTTP(S)_PROXY` 环境变量；
-- 构建镜像 `pbuild:wine32`：同样以 host 网络运行。
-
-**如果将来真要用桥接容器出网**，在 7897 之外只补一条 `docker run --network host`，或临时执行：
+| 容器 | `mihomo`，镜像 `metacubex/mihomo:latest`（143MB） |
+| 网络 | `--network host`（与宿主共享网络栈，`127.0.0.1:7897` 直接可用） |
+| 配置 | `/srv/mihomo/config.yaml`（由 Clash Verge 的 `clash-verge.yaml` 原样复制，含 175 个节点、proxy-groups、rules） |
+| 端口 | `mixed-port: 7897`，`allow-lan: false`，仅回环 |
+| 重启策略 | `--restart always` |
 
 ```bash
-socat TCP-LISTEN:17897,fork,reuseaddr,bind=172.17.0.1 TCP:127.0.0.1:7897 &
+mkdir -p /srv/mihomo && cp <clash-verge 配置> /srv/mihomo/config.yaml
+docker run -d --name mihomo --restart always --network host \
+  -v /srv/mihomo:/root/.config/mihomo \
+  metacubex/mihomo:latest -d /root/.config/mihomo
 ```
 
-**内网一律直连**：`10.175.2.0/24` 已在 docker 的 `NO_PROXY` 里；实测宿主、GitLab 容器、`pbuild:wine32` 访问 `http://10.175.2.11:8082/` 均返回 302，耗时 15~30ms，证明内网流量不经代理。
+实测：`google 200 / 2.2s`、`github 200 / 2.1s`、`registry.npmjs.org 200 / 0.7s`。
 
-最终 docker daemon 代理配置（`/etc/systemd/system/docker.service.d/proxy.conf`）：
+**17897 已彻底移除**：原 `proxy-relay.service`（socat 172.17.0.1:17897 → 127.0.0.1:7897）已 `stop` + `disable`，端口释放，全系统无引用。
 
-```
-[Service]
-Environment="HTTP_PROXY=http://127.0.0.1:7897" "HTTPS_PROXY=http://127.0.0.1:7897" "NO_PROXY=localhost,127.0.0.1,10.175.2.0/24,gitlab,jenkins,zadig,.local,gitlab.com,.gitlab.com,registry.gitlab.com,registry.npmmirror.com,cdn.npmmirror.com"
-```
+> 拉 mihomo 镜像时 Docker Hub 直连与 Clash 代理都因 cloudfront 分片 EOF 失败，最终用国内镜像源 `docker.1ms.run/metacubex/mihomo:latest` 拉取后重打 tag。
+
+**流水线内不再配置任何代理**：`.gitlab-ci.yml` 里已删除 `HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY` / `ELECTRON_GET_USE_PROXY`，依赖与二进制全部走 npmmirror 直连。Runner 用 host 网络，需要出海时由宿主 mihomo 承担。
+
+**内网一律直连**：实测宿主、GitLab 容器、`pbuild:wine32` 访问 `http://10.175.2.11:8082/` 均 302、15~30ms。
 
 ### 5.4 `.gitlab-ci.yml` 要点
 
@@ -295,3 +291,34 @@ Environment="HTTP_PROXY=http://127.0.0.1:7897" "HTTPS_PROXY=http://127.0.0.1:789
 产物：包仓库 `petition-desktop 0.2.8`（`PetitionDesktop-Setup-0.2.8.exe` 121MB、`PetitionDesktop-0.2.8-portable.exe` 109MB），Release `v0.2.8` 两个资产链接均指向 `/api/v4/projects/1/packages/generic/petition-desktop/0.2.8/...`。
 
 发版动作（与 Jenkins 时代一致）：改 `package.json` 版本 → `git tag vX.Y.Z` → `git push origin master vX.Y.Z`。
+
+
+## 六、容器清单与清理（2026-11-18）
+
+### 6.1 当前在跑的服务（7 个容器，全部 Up）
+
+| 服务 | 容器 | 端口 | 用途 |
+| --- | --- | --- | --- |
+| GitLab CE 19.5.6 | `gitlab` | 8082→80、2222→22 | 代码托管 + CI 编排 |
+| GitLab Runner 19.5.3 | `gitlab-runner` | host 网络 | 执行 CI（docker executor） |
+| Codes 3.7.0GA | `codes_web_server` | 8010→8032、8063-8064 | 研发项目管理（待激活） |
+| Codes MySQL | `codes_mysql_server` | 3306（内部） | Codes 数据库 |
+| Codes Redis | `codes_redis_server` | 6379（内部） | Codes 缓存 |
+| Codes 文档预览 | `codes_preview_server_` | 8012 | kkfileview |
+| mihomo | `mihomo` | host 网络 7897 | 出网代理（替代桌面 Clash） |
+
+另有 k3s 内的 Zadig 5.0（17 个 pod，宿主 30080），不属于 docker 管理。
+
+### 6.2 本次清理结果
+
+镜像总量 **18.56GB → 16.22GB**，容器 **9 个 → 7 个**（全部在用）。
+
+| 删除项 | 说明 |
+| --- | --- |
+| `jenkins` 容器（已停）+ `jenkins/jenkins:2.591-jdk21` | CI 已迁 GitLab Runner；**数据卷保留**，需要时可 `docker run` 回来 |
+| `pbuild/jenkins:local`（1.03GB） | Jenkins 定制镜像，废弃 |
+| `pbuild:wine`（2.88GB） | 旧 wine 镜像，已被 `pbuild:wine32` 取代 |
+| `apifox-bake` 容器 + `node:22-bookworm`（1.64GB） | 构建 apifox-cli 时的中间产物，成品镜像 `pbuild/apifox-cli:2.2.12` 已独立存在 |
+| `hello-world` / `alpine` / `curlimages/curl` | 调试用测试镜像 |
+
+保留：`pbuild:wine32`（3.85GB，构建必需）、`pbuild/apifox-cli:2.2.12`（4.2GB，api-smoke 用）、Codes 四件套、GitLab、Runner、helper。
