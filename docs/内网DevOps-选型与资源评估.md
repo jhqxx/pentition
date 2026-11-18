@@ -247,7 +247,7 @@ docker daemon 全局挂了 `HTTPS_PROXY=http://127.0.0.1:7897`，把 `registry.g
 
 ### 5.3 代理：服务器 Clash 已容器化（mihomo，127.0.0.1:7897）
 
-服务器原来的桌面版 Clash Verge（`/usr/bin/clash-verge` + `verge-mihomo`，桌面进程）已停用，改为 Docker 容器运行同一份订阅配置：
+服务器原来的桌面版 Clash Verge（dpkg 包 `clash-verge 2.5.10`，含 `/usr/bin/clash-verge`、`/usr/bin/verge-mihomo`、`/usr/bin/clash-verge-service`）**已彻底卸载**（`apt purge` + 删除用户数据目录），改为 Docker 容器运行同一份订阅配置：
 
 | 项 | 值 |
 | --- | --- |
@@ -265,6 +265,22 @@ docker run -d --name mihomo --restart always --network host \
 ```
 
 实测：`google 200 / 2.2s`、`github 200 / 2.1s`、`registry.npmjs.org 200 / 0.7s`。
+
+**卸载 Clash Verge 的收尾**：
+
+```bash
+dpkg -l | grep clash-verge            # 卸载前: ii clash-verge 2.5.10 amd64 Clash Verge Rev
+tar czf /srv/mihomo/clash-verge-backup-$(date +%Y%m%d).tar.gz \
+  -C /home/lizhi/.local/share io.github.clash-verge-rev.clash-verge-rev   # 先备份 14M
+apt-get purge -y clash-verge
+rm -rf /home/lizhi/.local/share/io.github.clash-verge-rev.clash-verge-rev \
+       /home/lizhi/.config/io.github.clash-verge-rev.clash-verge-rev \
+       /home/lizhi/.cache/io.github.clash-verge-rev.clash-verge-rev \
+       /home/lizhi/.local/share/applications/clash-verge-handler.desktop
+find /usr /opt /etc /home/lizhi -iname "*clash-verge*"   # 复查: 无残留
+```
+
+卸载后复验：`mihomo Up`、`google 302`、`github 200`，GitLab 8082 / Codes 8010 / Zadig 30080 全部正常。
 
 **17897 已彻底移除**：原 `proxy-relay.service`（socat 172.17.0.1:17897 → 127.0.0.1:7897）已 `stop` + `disable`，端口释放，全系统无引用。
 
