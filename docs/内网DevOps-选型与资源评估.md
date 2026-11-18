@@ -181,6 +181,7 @@ stage('API 冒烟门禁') {
 | P4 | Codes 激活 | ⏳ 等租户 ID（http://10.175.2.11:8010/codes/） |
 | P4 | Apifox 真套件接入 | ⏳ 等 Apifox 项目/套件/环境 ID + Jenkins 凭据 `apifox-token` |
 | P5 | Zadig 加一条项目级工作流 | ✅ 完成（`exe-artifact-check`：构建 Pod 直连 GitLab 校验 exe 包，task 2 passed） |
+| P6 | CI 从 Jenkins 迁到 GitLab 原生 Runner | ✅ 完成（tag `v0.2.8` 全链路绿：verify → build → upload → release，产物进包仓库 + Release 双资产链接） |
 
 **Apifox 最小验证已闭环**：镜像 `pbuild/apifox-cli:2.2.12` 已构建，Jenkinsfile 已加门控 stage，构建 #23 以 `RUN_API_TEST=true` 跑通并输出 `2.2.12`，构建 #22（默认关闭）仍是 SUCCESS —— 开关两侧都验证过，不会拖累 P0 绿线。
 
@@ -199,3 +200,74 @@ curl -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/jso
 curl -H "Authorization: Bearer $TOKEN" \
   http://127.0.0.1:30080/api/aslan/workflow/v4/workflowtask/workflow/exe-artifact-check/task/2
 ```
+
+
+## 五、CI 迁移到 GitLab 原生 Runner（2026-11-18 完成）
+
+Jenkins 已停用（`docker stop jenkins`，保留数据可随时回来），流水线改由 GitLab Runner 原生执行。
+
+### 5.1 Runner 配置
+
+| 项 | 值 |
+| --- | --- |
+| Runner | `#2 lab-docker-runner`（项目级，`online`） |
+| 版本 | 19.5.3，与 GitLab 19.5.6 匹配 |
+| Executor | docker，`network_mode = "host"`，`concurrent = 2`，`pull_policy = if-not-present` |
+| 镜像 | `pbuild:wine32`（本地镜像，wine 交叉构建 Windows exe） |
+| 标签 | `docker,linux,wine,electron`，`run_untagged=true` |
+| 缓存挂载 | `/srv/build/cache/{electron,electron-builder,pnpm}` → 容器 `~/.cache/*` |
+| Token | `/srv/gitlab-runner/runner-token.txt`（`glrt-` 前缀，权限 600） |
+
+创建流程（官方 glrt token 方式）：GitLab → 项目 → 设置 → CI/CD → Runner → 创建项目 Runner → 拿 `glrt-` token → 容器内 `gitlab-runner register --non-interactive --url http://10.175.2.11:8082/ --token <glrt> --executor docker --docker-image pbuild:wine32 --docker-network-mode host`。
+
+### 5.2 两个真实故障与根因（踩过，务必记住）
+
+**故障一：所有 job `scheduler_failure`，runner 轮询永远 204**
+
+GitLab 19 的 CI job token 改用 JWT 签发，密钥存在 `application_settings.encrypted_ci_job_token_signing_key` 里，本实例为空。取任务时 `lib/ci/job_token/jwt.rb:87` 抛 `RuntimeError: CI job token signing key is not set`，被 `register_job_service.rb` 的 `rescue StandardError` 捕获后 `build.reset` + `drop_build!(build)`（默认 `failure_reason = :scheduler_failure`），于是**任务在派发瞬间被丢弃**，UI 只显示 "The scheduler failed to assign job to the runner"。
+
+> 注意：`ci_jwt_signing_key`（artifact JWT）和 `ci_job_token_signing_key`（job token）是**两个不同的键**，只设前者无效。
+
+修复：
+
+```bash
+openssl genrsa -out /srv/gitlab/config/ci_job_token_signing_key.pem 2048
+docker exec gitlab chown git:git /etc/gitlab/ci_job_token_signing_key.pem
+docker exec gitlab chmod 600 /etc/gitlab/ci_job_token_signing_key.pem
+docker exec gitlab gitlab-rails runner \
+  "ApplicationSetting.current.update!(ci_job_token_signing_key: File.read('/etc/gitlab/ci_job_token_signing_key.pem'))"
+docker exec gitlab gitlab-ctl restart puma   # 必须重启，内存缓存不会自动失效
+```
+
+**故障二：helper 镜像拉不下来（`short read` / `TLS handshake timeout`）**
+
+docker daemon 全局挂了 `HTTPS_PROXY=http://127.0.0.1:7897`，把 `registry.gitlab.com` / `gitlab.com` 也塞进 Clash。实测**这两个域名直连反而更快更稳**（`registry.gitlab.com/v2/` 直连 401 耗时 0.75s，走 Clash 10s 超时）。
+
+修复：`/etc/systemd/system/docker.service.d/proxy.conf` 的 `NO_PROXY` 追加 `gitlab.com,.gitlab.com,registry.gitlab.com,registry.npmmirror.com,cdn.npmmirror.com`，然后 `systemctl daemon-reload && systemctl restart docker`，再 `docker pull registry.gitlab.com/gitlab-org/gitlab-runner/gitlab-runner-helper:x86_64-v19.5.3` 一次成功。
+
+### 5.3 代理端口为什么有两个
+
+| 端口 | 谁在监听 | 给谁用 |
+| --- | --- | --- |
+| `127.0.0.1:7897` | Clash `verge-mihomo`（只绑回环） | 宿主进程（docker daemon、curl、git） |
+| `172.17.0.1:17897` | `socat TCP-LISTEN:17897 ... TCP:127.0.0.1:7897` | 桥接网络里的容器（容器内 `127.0.0.1` 指向容器自己，必须用网关 IP） |
+
+Runner 用 `network_mode = "host"`，与宿主共享网络命名空间，所以 **CI 里代理直接写 `127.0.0.1:7897`**，不要写 17897。
+
+### 5.4 `.gitlab-ci.yml` 要点
+
+- 依赖与二进制全走国内镜像直连：`npm_config_registry`、`ELECTRON_MIRROR`、`ELECTRON_BUILDER_BINARIES_MIRROR` 均指向 `registry.npmmirror.com`，并加进 `NO_PROXY`。
+- `release` 作业必须限定 `rules: - if: $CI_COMMIT_TAG`，否则 master 流水线会因 `CI_COMMIT_TAG` 为空去建 Release，报 `422 {"message":"Ref is not specified"}`。
+- `upload-package` 用 `curl --upload-file` 推 generic 包，需要项目变量 `GITLAB_TOKEN`（`PRIVATE-TOKEN`），且 `max_artifacts_size` 调到 300MB（exe 单包 121MB，默认 100MB 装不下）。
+
+### 5.5 验收结果
+
+| 流水线 | 内容 | 结果 |
+| --- | --- | --- |
+| pipeline 16 | master，含 build/upload | build、upload 绿；release 因规则缺失 422（已修） |
+| pipeline 17 | master（修后） | verify / build / upload 全绿，release 正确跳过 |
+| **pipeline 18** | **tag `v0.2.8`** | **verify-version ✅ build-windows ✅ upload-package ✅ release ✅** |
+
+产物：包仓库 `petition-desktop 0.2.8`（`PetitionDesktop-Setup-0.2.8.exe` 121MB、`PetitionDesktop-0.2.8-portable.exe` 109MB），Release `v0.2.8` 两个资产链接均指向 `/api/v4/projects/1/packages/generic/petition-desktop/0.2.8/...`。
+
+发版动作（与 Jenkins 时代一致）：改 `package.json` 版本 → `git tag vX.Y.Z` → `git push origin master vX.Y.Z`。
