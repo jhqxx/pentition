@@ -175,25 +175,32 @@
 
 ---
 
-## 7. 运维脚本的自管理（ops/zentao-bridge）
+## 7. 运维脚本的自管理（独立项目 zentao-bridge）
 
-禅道原生只能「从 GitLab 拉 Issue」，不能反向建。补这一环的桥脚本**不放服务器上散着**，而是纳入本仓库，由 GitLab CI 部署 —— 即「GitLab 管 GitLab 自己的运维脚本」。
+禅道原生只能「从 GitLab 拉 Issue」，不能反向建，也没有好用的批量导入。补这两件事的桥
+**不放服务器上散着，也不塞进业务仓库**，而是独立成一个项目，由 GitLab CI 部署自己 ——
+即「GitLab 管 GitLab 自己的运维脚本」。
+
+仓库：`http://10.175.2.11:8082/lbxq/zentao-bridge`（Job 用户组级 Runner 也能跑）
 
 | 关注点 | 做法 |
 | --- | --- |
-| 源码 | `ops/zentao-bridge/bridge.py`（约 200 行，仅标准库） |
+| 组成 | `bridge.py`（禅道 Bug → GitLab Issue）、`importer.py`（Excel/CSV 解析 + 禅道 REST）、`server.py`（路由）、`static/import.html`（导入页面） |
 | 进程 | 宿主 systemd `zentao-bridge.service`（`Restart=always`），监听 8099 |
-| 部署 | CI 作业 `deploy-bridge`（dev 分支、`ops/zentao-bridge/**` 有改动时手动触发） |
-| 重启 | 宿主 `zentao-bridge.path` 侦测 `/srv/zentao-bridge/bridge.py` 变化 → 触发 `zentao-bridge-reload.service`（oneshot `systemctl restart`） |
-| 校验 | 桥启动时把自身源码 sha256 报在 `/health` 的 `source_sha256`，CI 轮询比对，一致才算部署成功 |
-| 配置 | 禅道 `zt_webhook` + `zt_config(message.setting)`，一次性写库 |
+| 页面 | `http://10.175.2.11:8099/import` —— 上传 或 贴链接 → 预览 → 写入禅道需求/Bug |
+| 部署 | CI 作业 `deploy-bridge`（本仓库内，manual），源码同步到 `/srv/zentao-bridge` |
+| 重启 | `zentao-bridge.path` 侦测 server.py / importer.py / static 变化 → `zentao-bridge-reload.service`（oneshot `systemctl restart`） |
+| 校验 | 服务把自身源码 sha256 报在 `/health`，CI 轮询比对，一致才算部署成功 |
+| 配置 | `/srv/zentao-bridge/config.env`（禅道账号、产品 id、GitLab token 路径） |
 
-踩过的两个坑（都已修）：
+踩过的坑（都已修）：
 
-1. **path 单元不能直接指向业务服务** —— 服务已在跑时 path 触发执行的是 `start`，等于空操作，新代码不会加载。必须指向 oneshot 的 restart 单元。
-2. **健康检查会骗人** —— 老进程应答 `/health` 也是 200。所以用「启动时缓存源码哈希」+ CI 轮询比对来证明新代码确实被加载。
+1. **path 单元不能直接指向业务服务** —— 服务已在跑时 path 触发执行的是 `start`，等于空操作。必须指向 oneshot 的 restart 单元。
+2. **健康检查会骗人** —— 老进程应答 `/health` 也是 200。用「启动时缓存源码哈希」+ CI 轮询比对来证明新代码已加载。
+3. **必须用线程版 HTTP Server** —— 禅道建 Bug 时会同步回调本服务的 `/zentao-bug`，单线程时两个请求互相等待，导入接口 25 秒超时失败（Bug 其实已建出来）。改 `ThreadingHTTPServer` 后 0.36 秒完成。
+4. **禅道导入接口要评审人** —— `/api.php/v1/products/{id}/stories` 不带 `reviewer` 会报「评审人不能为空」；Bug 接口不需要。
 
-验证记录（2026-11-19）：v1.1.0 → 1.1.1 → 1.1.2 三次部署均由 CI 完成，pid 每次都换；禅道提交 Bug #3 后 1 秒内 GitLab 出现 Issue #2（labels `zentao,bug`，正文含字段表与禅道回链）。
+验证记录（2026-11-19）：禅道提交 Bug 后 GitLab 秒级出现 Issue（labels `zentao,bug`）；导入页贴链接 → 3 行预览（2 需求 1 Bug）→ 一键写入全部成功，Bug 那条同时触发了 GitLab Issue。
 
 ---
 

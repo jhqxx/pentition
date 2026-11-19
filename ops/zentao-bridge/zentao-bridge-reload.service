@@ -1,9 +1,0 @@
-[Unit]
-Description=Reload zentao-bridge after bridge.py is redeployed by GitLab CI
-# 关键点：systemd 的 path 单元只会「start」目标单元，服务已在跑时 start 是空操作，
-# 所以这里用一个 oneshot 去执行真正的 restart。
-After=zentao-bridge.service
-
-[Service]
-Type=oneshot
-ExecStart=/bin/systemctl restart zentao-bridge.service

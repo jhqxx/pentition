@@ -23,7 +23,6 @@ stages:
   - package
   - release
   - api-test
-  - deploy
 
 variables:
   GITLAB_API: "http://10.175.2.11:8082/api/v4"
@@ -184,40 +183,3 @@ api-smoke:
     - if: $CI_COMMIT_BRANCH == "master" || $CI_COMMIT_BRANCH == "dev"
       when: manual
     - when: never
-
-# ---------- 6. 部署禅道→GitLab 桥（GitLab 管自己的运维脚本） ----------
-# 源码 ops/zentao-bridge/，本作业只把文件铺到宿主 /srv/zentao-bridge/；
-# 重启由宿主 systemd 的 path 单元侦测文件变化后触发 oneshot restart 完成，
-# 因此 CI 作业不需要 systemctl 权限。Runner 需挂载 /srv -> /deploy。
-# 校验方式：bridge 启动时把自身源码 sha256 报在 /health，这里轮询比对，
-# 一致才说明「新代码确实被加载了」，而不是老进程还在应答。
-deploy-bridge:
-  stage: deploy
-  image: pbuild:wine32
-  needs: []
-  rules:
-    - if: $CI_COMMIT_BRANCH == "dev"
-      changes:
-        - ops/zentao-bridge/**/*
-      when: manual
-    - when: never
-  script:
-    - |
-      set -eu
-      DEST=/deploy/zentao-bridge
-      mkdir -p "$DEST"
-      install -m 0644 ops/zentao-bridge/bridge.py "$DEST/bridge.py"
-      WANT=$(sha256sum "$DEST/bridge.py" | cut -d' ' -f1)
-      echo "期望源码 sha256 = $WANT"
-      for i in $(seq 1 30); do
-        GOT=$(curl -fsS http://127.0.0.1:8099/health 2>/dev/null | sed -n 's/.*"source_sha256": *"\([0-9a-f]*\)".*/\1/p' || true)
-        if [ "$GOT" = "$WANT" ]; then
-          echo "桥已加载新代码（pid 已换），健康检查通过"
-          curl -fsS http://127.0.0.1:8099/health; echo
-          exit 0
-        fi
-        sleep 2
-      done
-      echo "60 秒内未加载新代码，当前上报 sha=$GOT"
-      echo "排查：systemctl status zentao-bridge zentao-bridge.path；journalctl -u zentao-bridge -n 30"
-      exit 1
