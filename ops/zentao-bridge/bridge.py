@@ -23,16 +23,20 @@ import time
 import urllib.request
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
-VERSION = "1.1.1"
+VERSION = "1.1.2"
 
 
-def source_sha256():
-    """本文件自身的 sha256：CI 用它判断「新代码是否真的被加载」。"""
+def _sha256_of_self():
     try:
         with open(os.path.abspath(__file__), "rb") as f:
             return hashlib.sha256(f.read()).hexdigest()
     except OSError:
         return ""
+
+
+# 进程启动时算一次并缓存：/health 报的是「正在运行的代码」的哈希。
+# 如果每次请求都重读文件，文件被 CI 覆盖后哈希立刻变，会让人误以为已重启。
+LOADED_SHA256 = _sha256_of_self()
 
 DEFAULTS = {
     "PORT": "8099",
@@ -143,7 +147,7 @@ class Handler(BaseHTTPRequestHandler):
             self._json(200, {
                 "status": "ok",
                 "version": VERSION,
-                "source_sha256": source_sha256(),
+                "source_sha256": LOADED_SHA256,
                 "pid": os.getpid(),
             })
         else:
