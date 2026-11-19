@@ -14,6 +14,7 @@
 配置全部走环境变量（见文件末尾 DEFAULTS），也可用 systemd Environment= 覆盖。
 """
 
+import hashlib
 import json
 import os
 import subprocess
@@ -22,7 +23,16 @@ import time
 import urllib.request
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
-VERSION = "1.0.0"
+VERSION = "1.1.0"
+
+
+def source_sha256():
+    """本文件自身的 sha256：CI 用它判断「新代码是否真的被加载」。"""
+    try:
+        with open(os.path.abspath(__file__), "rb") as f:
+            return hashlib.sha256(f.read()).hexdigest()
+    except OSError:
+        return ""
 
 DEFAULTS = {
     "PORT": "8099",
@@ -130,7 +140,12 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path.startswith("/health"):
-            self._json(200, {"status": "ok", "version": VERSION})
+            self._json(200, {
+                "status": "ok",
+                "version": VERSION,
+                "source_sha256": source_sha256(),
+                "pid": os.getpid(),
+            })
         else:
             self._json(404, {"error": "not found"})
 

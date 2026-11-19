@@ -36,12 +36,21 @@ ops/zentao-bridge/bridge.py  ──push dev──▶  CI 作业 deploy-bridge（
                                               │ install 到 /srv/zentao-bridge/bridge.py
                                               ▼
                                     systemd zentao-bridge.path 侦测到文件变化
-                                              │ 触发
+                                              │ 触发 oneshot
                                               ▼
-                                    systemctl restart zentao-bridge.service
+                            zentao-bridge-reload.service → systemctl restart zentao-bridge.service
+                                              ▼
+                          CI 轮询 /health，比对 source_sha256 == 刚装的文件哈希
 ```
 
-CI 作业本身**不需要 systemctl 权限**（runner 是 docker executor），重启是靠 systemd 的 path 单元完成的。
+两个坑都踩过了，写在这里省得再踩：
+
+1. **path 单元不能直接指向业务服务**。`Unit=zentao-bridge.service` 时，path 触发执行的是「start」，
+   而服务本来就在跑 → 空操作，新代码根本没被加载。必须指向一个 oneshot 的 reload 单元。
+2. **健康检查会骗人**。老进程还在应答 `/health` 也是 200。所以 bridge 启动时把自身源码的
+   sha256 报在 `/health` 的 `source_sha256` 字段，CI 轮询比对，一致才算部署成功。
+
+CI 作业本身**不需要 systemctl 权限**（runner 是 docker executor），重启靠宿主 systemd 完成。
 Runner 通过 `volumes = ["/srv:/deploy"]` 把宿主 `/srv` 挂进作业容器。
 
 ## 服务器上的一次性安装
@@ -50,9 +59,10 @@ Runner 通过 `volumes = ["/srv:/deploy"]` 把宿主 `/srv` 挂进作业容器�
 # 1) 目录与文件（之后由 CI 维护 bridge.py）
 mkdir -p /srv/zentao-bridge
 
-# 2) systemd 单元（两个文件在本目录）
-install -m 0644 ops/zentao-bridge/zentao-bridge.service /etc/systemd/system/
-install -m 0644 ops/zentao-bridge/zentao-bridge.path    /etc/systemd/system/
+# 2) systemd 单元（三个文件在本目录）
+install -m 0644 ops/zentao-bridge/zentao-bridge.service        /etc/systemd/system/
+install -m 0644 ops/zentao-bridge/zentao-bridge-reload.service /etc/systemd/system/
+install -m 0644 ops/zentao-bridge/zentao-bridge.path           /etc/systemd/system/
 
 # 3) 启用
 systemctl daemon-reload
@@ -89,6 +99,7 @@ ON DUPLICATE KEY UPDATE value=VALUES(value);
 | 有 RECV 但 `ERROR` | 多半是 `docker exec zentao mysql` 失败：`docker ps` 看 zentao 是否 Up |
 | `ERROR 401` | PAT 失效：`/srv/gitlab/ci-token.txt` |
 | 健康检查不通 | `systemctl status zentao-bridge`；端口 8099 被占？ |
+| 部署后 `/health` 的 `source_sha256` 没变 | path 单元没触发：`systemctl status zentao-bridge.path`；或 reload 单元没装 |
 
 ## 环境变量
 

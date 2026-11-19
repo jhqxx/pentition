@@ -2,9 +2,11 @@
 Description=Restart zentao-bridge when bridge.py is redeployed by GitLab CI
 
 [Path]
-# CI 作业把新版本写到这里，文件变化即触发服务重启（无需 CI 有 systemctl 权限）
+# CI 作业把新版本写到这里，文件变化即触发 reload（CI 作业本身不需要 systemctl 权限）
 PathModified=/srv/zentao-bridge/bridge.py
-Unit=zentao-bridge.service
+# 注意：目标必须是一个 oneshot 的 restart 单元；直接指向 zentao-bridge.service 时，
+# 服务已在运行，path 触发只会执行一次「start」，等于什么都没做。
+Unit=zentao-bridge-reload.service
 
 [Install]
 WantedBy=multi-user.target
