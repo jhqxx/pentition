@@ -23,6 +23,7 @@ stages:
   - package
   - release
   - api-test
+  - deploy
 
 variables:
   GITLAB_API: "http://10.175.2.11:8082/api/v4"
@@ -183,3 +184,33 @@ api-smoke:
     - if: $CI_COMMIT_BRANCH == "master" || $CI_COMMIT_BRANCH == "dev"
       when: manual
     - when: never
+
+# ---------- 6. 部署禅道→GitLab 桥（GitLab 管自己的运维脚本） ----------
+# 源码 ops/zentao-bridge/，本作业只负责把文件铺到宿主 /srv/zentao-bridge/；
+# 重启由宿主的 systemd path 单元（zentao-bridge.path）侦测文件变化后完成，
+# 因此 CI 作业不需要 systemctl 权限。Runner 需挂载 /srv -> /deploy。
+deploy-bridge:
+  stage: deploy
+  image: pbuild:wine32
+  needs: []
+  rules:
+    - if: $CI_COMMIT_BRANCH == "dev"
+      changes:
+        - ops/zentao-bridge/**/*
+      when: manual
+    - when: never
+  script:
+    - |
+      set -eu
+      DEST=/deploy/zentao-bridge
+      echo "部署到 $DEST"
+      mkdir -p "$DEST"
+      install -m 0644 ops/zentao-bridge/bridge.py "$DEST/bridge.py"
+      ls -l "$DEST"
+      python3 -c "import ast,sys; ast.parse(open('$DEST/bridge.py').read()); print('语法检查通过')" || true
+      # path 单元会在文件变化后重启服务，等它起来
+      for i in 1 2 3 4 5 6 7 8 9 10; do
+        if curl -fsS http://127.0.0.1:8099/health; then echo; echo "桥已就绪"; exit 0; fi
+        sleep 2
+      done
+      echo "健康检查失败：请查看 journalctl -u zentao-bridge"; exit 1
