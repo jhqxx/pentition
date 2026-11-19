@@ -23,7 +23,7 @@ import time
 import urllib.request
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
-VERSION = "1.1.0"
+VERSION = "1.1.1"
 
 
 def source_sha256():
