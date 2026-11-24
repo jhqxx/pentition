@@ -265,6 +265,50 @@ export function normalizeDictStoredValues(): number {
  * Complaint（信访件）+ Clue（问题线索）两张物理表。
  * 幂等：只要 Clue 已存在就跳过。
  */
+function dropStaleViews(handle: SqliteHandle): string[] {
+  const views = handle.prepare("SELECT name FROM sqlite_master WHERE type = 'view'").all() as unknown as Array<{ name: string }>
+  const dropped: string[] = []
+  for (const item of views) {
+    try {
+      handle.exec(`DROP VIEW IF EXISTS "${item.name}"`)
+      dropped.push(item.name)
+    } catch (error) {
+      console.warn(`[db] 删除视图 ${item.name} 失败：`, error)
+    }
+  }
+  return dropped
+}
+
+/**
+ * 修复「迁移做到一半」的库：老版本崩溃/断电可能留下 Complaint_legacy、ComplaintAttachment_new 或
+ * 指向不存在表的视图。新版启动时先把它修回可用状态，避免一次失败让新旧版本都打不开。
+ */
+function repairBrokenSchema(handle: SqliteHandle): void {
+  const views = handle.prepare("SELECT name FROM sqlite_master WHERE type = 'view'").all() as unknown as Array<{ name: string }>
+  for (const item of views) {
+    try {
+      handle.prepare(`SELECT 1 FROM "${item.name}" LIMIT 1`).get()
+    } catch {
+      console.warn(`[db] 视图 ${item.name} 已失效（引用的表不存在），删除后重建`)
+      handle.exec(`DROP VIEW IF EXISTS "${item.name}"`)
+    }
+  }
+  // 老表还挂在旁边、正式表不见了：先改名回来，再走正常拆表流程
+  if (!tableExists(handle, 'Complaint') && tableExists(handle, 'Complaint_legacy')) {
+    console.warn('[db] 发现未完成的拆分（Complaint 缺失、Complaint_legacy 存在），先恢复原表')
+    handle.exec('ALTER TABLE Complaint_legacy RENAME TO Complaint')
+  }
+  // 附件表临时表残留
+  if (tableExists(handle, 'ComplaintAttachment_new')) {
+    if (!tableExists(handle, 'ComplaintAttachment')) {
+      handle.exec('ALTER TABLE ComplaintAttachment_new RENAME TO ComplaintAttachment')
+    } else {
+      handle.exec('DROP TABLE ComplaintAttachment_new')
+    }
+    console.warn('[db] 清理残留的 ComplaintAttachment_new')
+  }
+}
+
 function migrateSplitComplaint(handle: SqliteHandle): void {
   if (!tableExists(handle, 'Complaint') || tableExists(handle, 'Clue')) return
   const columns = handle.prepare("PRAGMA table_info('Complaint')").all() as unknown as Array<{ name: string }>
@@ -273,6 +317,9 @@ function migrateSplitComplaint(handle: SqliteHandle): void {
   handle.pragma('foreign_keys = OFF')
   try {
     handle.transaction(() => {
+      // 关键：视图里引用了 Clue，若先 RENAME 会让 SQLite 重新解析视图而报
+      // 「error in view ComplaintAll: no such table: main.Clue」，必须先拆视图
+      dropStaleViews(handle)
       handle.exec(`CREATE TABLE ComplaintAttachment_new (
         Id INTEGER PRIMARY KEY AUTOINCREMENT,
         OriginalCode TEXT NOT NULL,
@@ -319,6 +366,7 @@ export function initDb(): void {
   db.pragma('journal_mode = WAL')
   db.pragma('busy_timeout = 5000')
   db.pragma('foreign_keys = ON')
+  repairBrokenSchema(db)
   // 老库先补列，再拆表；新库直接建表
   if (tableExists(db, 'Complaint') && !tableExists(db, 'Clue')) ensureColumns(db)
   migrateSplitComplaint(db)

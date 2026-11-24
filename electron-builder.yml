@@ -10,6 +10,12 @@ files:
   - package.json
 asarUnpack:
   - '**/*.node'
+# 随包发布的示例库：全新安装时复制到 <程序目录>/data/petition.db，打开即有测试数据
+extraResources:
+  - from: resources/seed
+    to: seed
+    filter:
+      - petition.db
 afterPack: ./scripts/afterPack.cjs
 npmRebuild: false # better-sqlite3 v13 自带各平台 N-API 预编译产物，任一平台都不需要 node-gyp/VS 编译工具链
 mac:

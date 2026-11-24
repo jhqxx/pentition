@@ -6,6 +6,7 @@ import { logoutCurrentUser, registerIpc } from './ipc'
 import { LOGIN_MIN, LOGIN_SIZE } from './windowSizes'
 
 import { canWriteDir, migrateLegacyData, portableDataDir } from './portable'
+import { installLogging, logPath } from './logger'
 
 // 数据目录跟着程序走：<程序目录>/data。整个目录复制到 U 盘/另一台机器即可继续用。
 // MALL_USER_DATA 仅用于自动化冒烟测试时临时指定数据目录。
@@ -30,7 +31,38 @@ if (!envUserData) {
   const migrated = migrateLegacyData(legacyUserData, dataDir)
   if (migrated.length) console.log(`[portable] 已从 ${legacyUserData} 迁移：${migrated.join(', ')}`)
 }
+installLogging(dataDir)
 console.log(`[portable] 数据目录：${dataDir}`)
+
+// 全新安装（既没有旧版本数据、data 里也还没有库）时，把随包发布的示例库带过去，
+// 保证打开就能看到数据，而不是一张空表。
+if (!envUserData && !fs.existsSync(path.join(dataDir, 'petition.db'))) {
+  const seedCandidates = [
+    path.join(process.resourcesPath ?? '', 'seed', 'petition.db'),
+    path.join(__dirname, '../../resources/seed/petition.db'),
+  ]
+  const seed = seedCandidates.find((item) => item && fs.existsSync(item))
+  if (seed) {
+    try {
+      fs.copyFileSync(seed, path.join(dataDir, 'petition.db'))
+      console.log(`[portable] 已复制随包示例数据：${seed}`)
+    } catch (error) {
+      console.error('[portable] 复制示例数据失败：', error)
+    }
+  }
+}
+
+process.on('uncaughtException', (error) => {
+  console.error('[fatal] 未捕获异常：', error)
+  try {
+    dialog.showErrorBox('程序出错', `${String(error?.message ?? error)}\n\n日志：${logPath()}`)
+  } catch {
+    /* 放弃弹窗 */
+  }
+})
+process.on('unhandledRejection', (reason) => {
+  console.error('[fatal] 未处理的 Promise 拒绝：', reason)
+})
 
 // 标题栏跟随品牌浅色界面，避免 Windows 深色模式下标题栏变黑
 nativeTheme.themeSource = 'light'
@@ -119,7 +151,15 @@ async function promptClose(): Promise<void> {
 }
 
 app.whenReady().then(() => {
-  initDb()
+  try {
+    initDb()
+  } catch (error) {
+    console.error('[db] 初始化失败：', error)
+    const detail = `${String((error as Error)?.message ?? error)}\n\n数据目录：${dataDir}\n日志：${logPath()}`
+    dialog.showErrorBox('数据库初始化失败', detail)
+    app.quit()
+    return
+  }
   // 时效状态（是否超期 / 超期办结）每 30 分钟自动重扫一次，跨天不需要重启程序
   const timelinessTimer = setInterval(() => {
     try {

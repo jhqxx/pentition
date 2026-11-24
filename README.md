@@ -188,6 +188,12 @@ SQLite 单文件，主进程独占；默认使用 Electron 内置的 **`node:sql
 
 `data/` 内含 `petition.db`、`Attachments/`、`settings.json`、`login.json`。首次启动若该目录没有数据库，会自动把系统旧目录（如 `~/Library/Application Support/petition-desktop`）里的数据复制一份过来，旧目录原样保留，可随时回退。`settings.json` 与附件表里的路径都只存相对路径，历史绝对路径（含早期 .NET 版写进来的 `C:\...`）会在启动时自动改写。自动化冒烟测试可用 `MALL_USER_DATA` 临时指定数据目录。
 
+全新安装（既没有旧版本数据、`data/` 里也没有库）时，会把随包发布的示例库 `resources/seed/petition.db` 复制过去，打开就有数据（83 条线索 / 26 条信访件 / 141 位被反映人）；只要机器上有旧版本数据，就优先迁移真实数据，示例库不会覆盖。
+
+运行日志写在 `data/logs/app-YYYY-MM-DD.log`（控制台输出同时落盘），启动失败、数据库异常都会记在这里；数据库初始化失败时会弹窗给出数据目录与日志路径，把日志发回即可定位。
+
+升级兼容：启动时会修掉旧版本可能留下的「迁移做到一半」的状态——失效视图（如 `ComplaintAll` 引用了不存在的 `Clue`）会先删除、残留的 `Complaint_legacy` / `ComplaintAttachment_new` 会被还原，然后再走正常的拆表迁移，避免一次失败让新旧版本都打不开。
+
 附件按**原始编号**分目录存放：`Attachments/<原始编号>/<时间戳>_<随机>.<扩展名>`，老数据启动时自动归位。设置页可把附件根目录改到别处。
 
 表结构与原项目逐字对齐：`Users` / `Clue`（问题线索，50 列）/ `Complaint`（信访件，50 列）/ `ComplaintAll`（视图：`Clue ∪ Complaint`，所有读查询的统一入口）/ `ComplaintAttachment`（按 `OriginalCode` 关联，因一个编号可能落在两张表，视图/表上不再建外键）/ `DictionaryClass` / `DictionaryItem` / `OperationLog`。老库是「单表 + `Category` 区分」的结构，启动时自动拆成 `Clue` + `Complaint` 两张表（按列名搬数据，附件表重建为无外键）。

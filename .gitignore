@@ -11,3 +11,7 @@ release/
 
 # 便携数据目录（跟着程序走，不入库）
 data/
+
+# 示例库的临时文件不入库
+resources/seed/*.db-wal
+resources/seed/*.db-shm

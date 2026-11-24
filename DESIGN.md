@@ -120,7 +120,9 @@
 
 - 数据目录固定为「程序所在目录/`data`」：开发态是项目根，打包后是 exe（Windows/Linux）或 `.app`（macOS）同级目录。程序目录与 `data/` 一起复制即可换机器/U 盘运行。
 - 目录不可写时（只读介质、系统目录）自动回退到系统 userData，并在日志里告警，不让应用起不来。
-- 首次启动若 `data/` 里没有数据库，从系统旧 userData 复制 `petition.db*`、`Attachments/`、`settings.json`、`login.json`，原目录保留。
+- 首次启动若 `data/` 里没有数据库，从系统旧 userData 复制 `petition.db*`、`Attachments/`、`settings.json`、`login.json`，原目录保留；若旧目录也没有，则复制随包示例库 `resources/seed/petition.db`（打包后位于 `Resources/seed/`），保证全新安装打开就有数据。
+- 启动自愈：`repairBrokenSchema()` 会删除引用不存在表的失效视图、清理残留的 `Complaint_legacy` / `ComplaintAttachment_new`；拆表迁移在事务第一步就 `dropStaleViews()`——否则 `ALTER TABLE Complaint RENAME` 会因视图重解析报 `no such table: main.Clue`，让数据库初始化直接失败。
+- 日志：`installLogging()` 把 console 同步写入 `data/logs/app-YYYY-MM-DD.log`，`initDb()` 失败时弹错误框并附日志路径，主进程挂了也有 `uncaughtException` 兜底。
 - 「导出」是一个右抽屉（26rem）：上半「哪些行」（当前筛选 N 行 / 已勾选 N 行，有勾选时默认勾选范围），中部「哪些列」（搜索、全选/清空、按 5 个业务分组列出 46 列、每行右侧「仅此列」），**底部「预览」**（报表标题 + 表头 + 前 5 行真实数据，随勾选实时裁剪列、横向可滚动，只请求一次），底部常驻「将导出 N 行 × M 列」与 取消/导出；列勾选记在 `localStorage.ui.exportColumns`。只有一个入口、两个决定都在这一个面板里，不再用下拉菜单分三件事。
 - 表格支持跨页勾选（`reserve-selection`），勾选后出现「已选 N 条 · 清空」；「导出」下拉分**导出选中**（按勾选编号）与**导出全部**（按当前筛选，含搜索/标签页/状态页），「打印台账」同样按勾选优先。
 - 表格里的长文本（问题摘要等）单元格单行省略；悬浮预览截到 120 字、限宽 22rem，完整内容进详情抽屉，不允许 tooltip 铺满屏。
