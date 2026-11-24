@@ -1,6 +1,7 @@
 appId: com.lbxq.petitiondesktop
 productName: PetitionDesktop
-icon: build/icon.png
+# 图标按约定从 build/ 读取：Windows 用 icon.ico（16/32/48/64/128 原生 + 256），
+# macOS 用 icon.icns，Linux 用 icon.png；不写 icon 字段，避免被强制转成单一 png。
 directories:
   buildResources: build
   output: release

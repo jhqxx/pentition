@@ -2,6 +2,67 @@ import type { SqliteHandle } from './sqlite-driver'
 import { hashPassword } from './password'
 import seed from './seed/petition-seed.json'
 
+/** 两行业务表（Complaint=信访件、Clue=问题线索）字段完全相同，只是分表存放 */
+export function COMPLAINT_TABLE_DDL(name: string): string {
+  return `CREATE TABLE IF NOT EXISTS ${name} (
+    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+    OriginalCode TEXT UNIQUE,
+    NewCode TEXT,
+    CategoryCode TEXT,
+    Category TEXT,
+    ParentCode TEXT,
+    ConvertedTime TEXT,
+    IsDeleted INTEGER DEFAULT 0,
+    DeleteTime DATETIME,
+    ClueSource TEXT,
+    ReceiveTime DATETIME NOT NULL,
+    TargetType TEXT,
+    TargetName TEXT,
+    IdCard TEXT,
+    BirthDate DATETIME,
+    Gender TEXT,
+    WorkExperience TEXT,
+    OrganizationName TEXT,
+    LegalPerson TEXT,
+    ContactPhone TEXT,
+    ContactAddress TEXT,
+    TargetPost TEXT,
+    TargetRank TEXT,
+    PoliticalStatus TEXT,
+    ProblemSummary TEXT,
+    ProblemType TEXT,
+    ReportForm TEXT,
+    ReportName TEXT,
+    ReportPhone TEXT,
+    AssignTime DATETIME,
+    AssignDept TEXT,
+    UndertakeDept TEXT,
+    UndertakeForm TEXT,
+    DisposeTime DATETIME,
+    DisposeMethod TEXT,
+    DisposeStatus TEXT,
+    Deadline DATETIME,
+    DisposeProgress TEXT,
+    HandleStatus TEXT,
+    DisposeForm TEXT,
+    DisposeResult TEXT,
+    IsCompleted TEXT,
+    CompleteTime DATETIME,
+    IsOverdue TEXT,
+    IsLateCompleted TEXT,
+    OverdueReason TEXT,
+    MainHandler TEXT,
+    AssistantHandler TEXT,
+    AuditHandler TEXT,
+    LeaderApproval TEXT,
+    ApprovalStatus TEXT,
+    RealNameReport TEXT,
+    Remark TEXT,
+    CreateTime DATETIME NOT NULL,
+    UpdateTime DATETIME NOT NULL
+  )`
+}
+
 export const TABLE_DDL: string[] = [
   `CREATE TABLE IF NOT EXISTS Users (
     Id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -19,58 +80,8 @@ export const TABLE_DDL: string[] = [
     LastLoginTime DATETIME,
     LastLoginIP TEXT
   )`,
-  `CREATE TABLE IF NOT EXISTS Complaint (
-    Id INTEGER PRIMARY KEY AUTOINCREMENT,
-    OriginalCode TEXT UNIQUE,
-    NewCode TEXT,
-    CategoryCode TEXT,
-    Category TEXT,
-    ParentCode TEXT,
-    IsDeleted INTEGER DEFAULT 0,
-    DeleteTime DATETIME,
-    ClueSource TEXT,
-    ReceiveTime DATETIME NOT NULL,
-    TargetType TEXT,
-    TargetName TEXT,
-    BirthDate DATETIME,
-    Gender TEXT,
-    WorkExperience TEXT,
-    OrganizationName TEXT,
-    LegalPerson TEXT,
-    ContactPhone TEXT,
-    ContactAddress TEXT,
-    TargetPost TEXT,
-    TargetRank TEXT,
-    PoliticalStatus TEXT,
-    ProblemSummary TEXT,
-    ReportForm TEXT,
-    ReportName TEXT,
-    ReportPhone TEXT,
-    AssignTime DATETIME,
-    AssignDept TEXT,
-    UndertakeDept TEXT,
-    UndertakeForm TEXT,
-    DisposeTime DATETIME,
-    DisposeMethod TEXT,
-    Deadline DATETIME,
-    DisposeProgress TEXT,
-    HandleStatus TEXT,
-    DisposeForm TEXT,
-    DisposeResult TEXT,
-    IsCompleted TEXT,
-    CompleteTime DATETIME,
-    IsOverdue TEXT,
-    OverdueReason TEXT,
-    MainHandler TEXT,
-    AssistantHandler TEXT,
-    AuditHandler TEXT,
-    LeaderApproval TEXT,
-    ApprovalStatus TEXT,
-    RealNameReport TEXT,
-    Remark TEXT,
-    CreateTime DATETIME NOT NULL,
-    UpdateTime DATETIME NOT NULL
-  )`,
+  COMPLAINT_TABLE_DDL('Complaint'),
+  COMPLAINT_TABLE_DDL('Clue'),
   `CREATE TABLE IF NOT EXISTS ComplaintAttachment (
     Id INTEGER PRIMARY KEY AUTOINCREMENT,
     OriginalCode TEXT NOT NULL,
@@ -79,8 +90,7 @@ export const TABLE_DDL: string[] = [
     FileSize INTEGER,
     FileType TEXT,
     UploadTime DATETIME NOT NULL,
-    Uploader TEXT,
-    FOREIGN KEY(OriginalCode) REFERENCES Complaint(OriginalCode) ON DELETE CASCADE
+    Uploader TEXT
   )`,
   `CREATE TABLE IF NOT EXISTS DictionaryClass (
     Id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -106,6 +116,27 @@ export const TABLE_DDL: string[] = [
     FOREIGN KEY(ClassId) REFERENCES DictionaryClass(Id),
     UNIQUE(ClassId, ItemKey)
   )`,
+  `CREATE TABLE IF NOT EXISTS ComplaintTarget (
+    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+    RecordCode TEXT NOT NULL,
+    SortOrder INTEGER DEFAULT 0,
+    TargetType TEXT,
+    TargetName TEXT,
+    IdCard TEXT,
+    BirthDate DATETIME,
+    Gender TEXT,
+    WorkExperience TEXT,
+    OrganizationName TEXT,
+    LegalPerson TEXT,
+    ContactPhone TEXT,
+    ContactAddress TEXT,
+    TargetPost TEXT,
+    TargetRank TEXT,
+    PoliticalStatus TEXT,
+    CreateTime DATETIME NOT NULL,
+    UpdateTime DATETIME NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_target_record ON ComplaintTarget(RecordCode)`,
   `CREATE TABLE IF NOT EXISTS OperationLog (
     Id INTEGER PRIMARY KEY AUTOINCREMENT,
     UserName TEXT NOT NULL,
@@ -122,6 +153,30 @@ export const TABLE_DDL: string[] = [
   )`,
 ]
 
+/** 视图会在创建时展开 *，给表补列后必须重建，否则新列在 ComplaintAll 里看不到 */
+export function createComplaintAllView(handle: SqliteHandle): void {
+  handle.exec('DROP VIEW IF EXISTS ComplaintAll')
+  handle.exec('CREATE VIEW ComplaintAll AS SELECT * FROM Complaint UNION ALL SELECT * FROM Clue')
+}
+
+
+/** 被反映人可能多人：每人一条记录，字段与主表里的被反映人字段一一对应 */
+export const TARGET_FIELDS = [
+  'TargetType',
+  'TargetName',
+  'IdCard',
+  'BirthDate',
+  'Gender',
+  'WorkExperience',
+  'OrganizationName',
+  'LegalPerson',
+  'ContactPhone',
+  'ContactAddress',
+  'TargetPost',
+  'TargetRank',
+  'PoliticalStatus',
+]
+
 export const COMPLAINT_COLUMNS = [
   'OriginalCode',
   'NewCode',
@@ -131,6 +186,7 @@ export const COMPLAINT_COLUMNS = [
   'ReceiveTime',
   'TargetType',
   'TargetName',
+  'IdCard',
   'BirthDate',
   'Gender',
   'WorkExperience',
@@ -142,6 +198,7 @@ export const COMPLAINT_COLUMNS = [
   'TargetRank',
   'PoliticalStatus',
   'ProblemSummary',
+  'ProblemType',
   'ReportForm',
   'ReportName',
   'ReportPhone',
@@ -151,6 +208,7 @@ export const COMPLAINT_COLUMNS = [
   'UndertakeForm',
   'DisposeTime',
   'DisposeMethod',
+  'DisposeStatus',
   'Deadline',
   'DisposeProgress',
   'HandleStatus',
@@ -159,6 +217,7 @@ export const COMPLAINT_COLUMNS = [
   'IsCompleted',
   'CompleteTime',
   'IsOverdue',
+  'IsLateCompleted',
   'OverdueReason',
   'MainHandler',
   'AssistantHandler',
@@ -177,13 +236,20 @@ const INSERT_ORDER = [
   ['Users', seed.users],
   ['DictionaryClass', seed.dictClasses],
   ['DictionaryItem', seed.dictItems],
-  ['Complaint', seed.complaints],
   ['ComplaintAttachment', seed.attachments],
   ['OperationLog', seed.logs],
 ] as const
 
+/** 种子里的信访/线索按 Category 落到各自的表：0=问题线索 → Clue，其余 → Complaint */
+function isClueSeed(row: SeedRow): boolean {
+  const category = String(row.Category ?? '').trim()
+  return category === '0' || category === '问题线索'
+}
+
 export function createSchema(conn: SqliteHandle): void {
   for (const ddl of TABLE_DDL) conn.exec(ddl)
+  // ComplaintAll：纪检监察业务读操作的统一入口（信访件 ∪ 问题线索）
+  createComplaintAllView(conn)
 }
 
 export function countRows(conn: SqliteHandle, table: string): number {
@@ -202,6 +268,9 @@ export function seedIfEmpty(conn: SqliteHandle): void {
           const data = table === 'Users' ? { ...row, Password: hashPassword(String(row.Password ?? '')) } : row
           insertRow(conn, table, data)
         }
+      }
+      for (const row of seed.complaints as SeedRow[]) {
+        insertRow(conn, isClueSeed(row) ? 'Clue' : 'Complaint', row)
       }
     })
   } finally {

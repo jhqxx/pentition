@@ -1,24 +1,17 @@
 <template>
   <div class="page">
-    <header class="page-head">
-      <div>
-        <h1 class="page-title">基础字典</h1>
-        <p class="page-subtitle">
-          {{ classes.length }} 个字典分类 · {{ totalItems }} 个字典项 ·
-          结构：字典分类（一级）→ 字典项（二级）→ 子项（三级）
-        </p>
-      </div>
-    </header>
-
     <div class="layout">
       <section class="pane pane-left">
         <header class="pane-head">
           <span class="pane-title">字典分类</span>
-          <el-button link type="primary" :icon="Plus" @click="openClassCreate">新增</el-button>
+          <el-button link type="primary" :icon="Plus" @click="openClassCreate">新增分类</el-button>
         </header>
+        <div class="pane-search">
+          <el-input v-model="classKw" size="small" clearable placeholder="搜索分类" :prefix-icon="Search" />
+        </div>
         <ul class="class-list">
           <li
-            v-for="item in classes"
+            v-for="item in filteredClasses"
             :key="item.Id"
             :class="['class-item', { active: item.Id === activeId }]"
             @click="selectClass(item.Id)"
@@ -33,25 +26,44 @@
               <el-button link type="danger" @click.stop="removeClass(item)">删除</el-button>
             </div>
           </li>
-          <li v-if="!classes.length" class="class-empty">暂无字典分类</li>
+          <li v-if="!filteredClasses.length" class="class-empty">
+            {{ classes.length ? '没有符合条件的分类' : '暂无字典分类' }}
+          </li>
         </ul>
       </section>
 
       <section class="pane pane-right">
         <header class="pane-head">
           <span class="pane-title">{{ activeClass?.ClassName || '字典项' }}</span>
-          <el-button type="primary" size="small" :icon="Plus" :disabled="!activeId" @click="openItemCreate()">
-            新增字典项
-          </el-button>
+          <span class="pane-tools">
+            <el-input
+              v-model="kw"
+              class="pane-search-input"
+              clearable
+              placeholder="搜索键值 / 显示值"
+              :prefix-icon="Search"
+            />
+            <el-button v-if="items.length && !kw.trim()" link @click="toggleExpand">
+              {{ expandAll ? '收起全部' : '展开全部' }}
+            </el-button>
+            <span class="pane-hint">
+              {{ kw.trim() ? `匹配 ${shownCount} / 共 ${totalItemCount}` : `共 ${totalItemCount} 项` }}
+            </span>
+            <el-button type="primary" :icon="Plus" :disabled="!activeId" @click="openItemCreate()">
+              新增字典项
+            </el-button>
+          </span>
         </header>
         <el-table
-          :data="items"
+          :key="`${activeId}-${expandAll}-${kw}`"
+          v-loading="loading"
+          :data="filteredItems"
+          :row-class-name="({ row }: { row: DictItem }) => (row.Id === highlightId ? 'row-flash' : '')"
           row-key="Id"
           :tree-props="{ children: 'children' }"
-          default-expand-all
+          :default-expand-all="expandAll || Boolean(kw.trim())"
           border
           stripe
-          size="small"
         >
           <el-table-column prop="ItemKey" label="键值" min-width="120" class-name="cell-mono" />
           <el-table-column label="显示值" min-width="180">
@@ -67,15 +79,15 @@
               <span v-else class="muted">—</span>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="188">
+          <el-table-column label="操作" width="188" class-name="cell-actions">
             <template #default="{ row }">
-              <el-button v-if="!row.ParentId" link type="primary" @click="openItemCreate(row)">子项</el-button>
+              <el-button v-if="!row.ParentId" link type="primary" @click="openItemCreate(row)">加子项</el-button>
               <el-button link type="primary" @click="openItemEdit(row)">编辑</el-button>
               <el-button link type="danger" @click="removeItem(row)">删除</el-button>
             </template>
           </el-table-column>
           <template #empty>
-            <div class="empty">该字典下暂无字典项</div>
+            <div class="empty">{{ kw.trim() ? '没有符合条件的字典项' : '该字典下暂无字典项' }}</div>
           </template>
         </el-table>
       </section>
@@ -130,9 +142,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
+import { Plus, Search } from '@element-plus/icons-vue'
 
 type DictClass = {
   Id: number
@@ -153,6 +165,12 @@ type DictItem = {
 }
 
 const classes = ref<DictClass[]>([])
+const classKw = ref('')
+const kw = ref('')
+const expandAll = ref(true)
+/** 新增/编辑后短暂高亮该行并滚到可见处 */
+const highlightId = ref<number | null>(null)
+const loading = ref(false)
 const items = ref<DictItem[]>([])
 const activeId = ref<number | null>(null)
 const classDialog = ref(false)
@@ -163,6 +181,55 @@ const classForm = reactive({ id: 0, className: '', description: '' })
 const itemForm = reactive({ id: 0, parentId: null as number | null, itemKey: '', itemValue: '', sortOrder: 0, description: '' })
 
 const activeClass = computed(() => classes.value.find((item) => item.Id === activeId.value) ?? null)
+
+/** 左栏按名称 / 说明过滤分类 */
+const filteredClasses = computed(() => {
+  const q = classKw.value.trim().toLowerCase()
+  if (!q) return classes.value
+  return classes.value.filter(
+    (item) =>
+      item.ClassName.toLowerCase().includes(q) ||
+      String(item.Description ?? '').toLowerCase().includes(q),
+  )
+})
+
+function matchItem(row: DictItem, q: string): boolean {
+  return (
+    String(row.ItemKey ?? '').toLowerCase().includes(q) ||
+    String(row.ItemValue ?? '').toLowerCase().includes(q)
+  )
+}
+
+/** 右栏按键值 / 显示值过滤；父项命中带出全部子项，子项命中保留父项 + 命中的子项 */
+const filteredItems = computed<DictItem[]>(() => {
+  const q = kw.value.trim().toLowerCase()
+  if (!q) return items.value
+  const out: DictItem[] = []
+  for (const top of items.value) {
+    if (matchItem(top, q)) {
+      out.push(top)
+      continue
+    }
+    const children = (top.children ?? []).filter((child) => matchItem(child, q))
+    if (children.length) out.push({ ...top, children })
+  }
+  return out
+})
+
+/** 字典项总数（含子项） */
+const totalItemCount = computed(() =>
+  items.value.reduce((sum, top) => sum + 1 + (top.children?.length ?? 0), 0),
+)
+
+/** 过滤后可见的行数（含子项），用于「匹配 N / 共 M」提示 */
+const shownCount = computed(() =>
+  filteredItems.value.reduce((sum, top) => sum + 1 + (top.children?.length ?? 0), 0),
+)
+
+function toggleExpand(): void {
+  expandAll.value = !expandAll.value
+}
+
 const totalItems = computed(() => classes.value.reduce((sum, item) => sum + item.itemCount, 0))
 const rootItems = computed(() => items.value.filter((item) => !item.ParentId))
 
@@ -180,8 +247,13 @@ async function loadClasses(keepId?: number): Promise<void> {
 
 async function loadItems(): Promise<void> {
   if (!activeId.value) return
-  const res = await window.api.dict.items(activeId.value)
-  if (res?.ok) items.value = res.data
+  loading.value = true
+  try {
+    const res = await window.api.dict.items(activeId.value)
+    if (res?.ok) items.value = res.data
+  } finally {
+    loading.value = false
+  }
 }
 
 function selectClass(id: number): void {
@@ -225,7 +297,10 @@ async function submitClass(): Promise<void> {
 
 async function removeClass(row: DictClass): Promise<void> {
   try {
-    await ElMessageBox.confirm(`删除字典「${row.ClassName}」会同时删除其下 ${row.itemCount} 个字典项，确认继续？`, '删除字典', {
+    await ElMessageBox.confirm(
+      `删除字典「${row.ClassName}」会同时删除其下 ${row.itemCount} 个字典项，删除后不可恢复。确定删除？`,
+      '删除字典',
+      {
       type: 'warning',
     })
   } catch {
@@ -288,7 +363,14 @@ async function submitItem(): Promise<void> {
     }
     ElMessage.success('已保存')
     itemDialog.value = false
+    const savedId = typeof res.data === 'number' ? res.data : null
     await Promise.all([loadItems(), loadClasses(activeId.value ?? undefined)])
+    if (savedId) {
+      highlightId.value = savedId
+      await nextTick()
+      document.querySelector('.el-table__body tr.row-flash')?.scrollIntoView({ block: 'nearest' })
+      window.setTimeout(() => (highlightId.value = null), 1600)
+    }
   } finally {
     saving.value = false
   }
@@ -296,7 +378,11 @@ async function submitItem(): Promise<void> {
 
 async function removeItem(row: DictItem): Promise<void> {
   try {
-    await ElMessageBox.confirm(`确认删除字典项「${row.ItemValue}」？`, '删除字典项', { type: 'warning' })
+    await ElMessageBox.confirm(`删除字典项「${row.ItemValue}」后不可恢复。确定删除？`, '删除字典项', {
+      type: 'warning',
+      confirmButtonText: '删除',
+      cancelButtonText: '取消'
+    })
   } catch {
     return
   }
@@ -331,24 +417,10 @@ onMounted(() => loadClasses())
 }
 
 .page {
-  padding: 1.5rem 1.75rem 2rem;
   display: flex;
   flex-direction: column;
   gap: 1rem;
   min-height: 100%;
-}
-
-.page-title {
-  margin: 0;
-  font-size: 1.375rem;
-  font-weight: 600;
-  color: var(--ink);
-}
-
-.page-subtitle {
-  margin: 0.125rem 0 0;
-  font-size: 0.8125rem;
-  color: var(--ink-3);
 }
 
 .layout {
@@ -365,13 +437,28 @@ onMounted(() => loadClasses())
   padding: 0.75rem;
 }
 
+.pane-search {
+  padding: 0.5rem 0.75rem 0;
+}
+
+.pane-search-input {
+  width: 12.5rem;
+}
+
 .pane-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 0.75rem;
   margin-bottom: 0.625rem;
   padding-bottom: 0.5rem;
   border-bottom: 1px solid var(--rule);
+}
+
+.pane-hint {
+  font-size: 0.75rem;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
 }
 
 .pane-title {

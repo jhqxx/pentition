@@ -1,10 +1,15 @@
 import {
+  complaintsForExport,
   dictLabelMap,
   getComplaint,
   listComplaints,
+  targetsForCodes,
   type ComplaintFilter,
   type ComplaintRow,
+  type TargetInput,
 } from './db'
+/** 被反映人类型：字典存显示值，兼容老数据里的代码 ORG/IND */
+const isUnitType = (value: unknown): boolean => ['单位', 'ORG'].includes(String(value ?? '').trim())
 
 const esc = (value: unknown): string =>
   String(value ?? '')
@@ -65,7 +70,7 @@ function frame(title: string, body: string, extraHead = ''): string {
   }
   .toolbar button.ghost { background: #fff; color: #1f6fb2; }
   .sheet {
-    width: 210mm; min-height: 297mm; margin: 16px auto; padding: 14mm;
+    width: 210mm; margin: 16px auto; padding: 14mm;
     background: #fff; box-shadow: 0 6px 24px rgba(16, 22, 29, .08);
   }
   h1 { font-size: 15pt; text-align: center; margin: 0 0 2mm; letter-spacing: .08em; }
@@ -76,9 +81,27 @@ function frame(title: string, body: string, extraHead = ''): string {
   th { background: #f2f7fc; font-weight: 500; text-align: left; width: 24mm; white-space: nowrap; }
   td.wide { width: auto; }
   .foot { margin-top: 8mm; display: flex; justify-content: space-between; font-size: 8.5pt; color: #5a6b7c; }
+  /* 台账固定列宽：10 列合计必须 ≤ 页面可用宽度（A4 210mm - 左右 14mm = 182mm），否则会溢到纸外被裁掉 */
+  .list { table-layout: fixed; }
   .list th { width: auto; }
+  .list td { padding: 1.2mm 1mm; font-size: 8.5pt; word-break: break-word; }
+  .list th { padding: 1.4mm 1mm; font-size: 8.5pt; }
+  .list th:nth-child(1), .list td:nth-child(1) { width: 7mm; }
+  .list th:nth-child(2), .list td:nth-child(2) { width: 26mm; }
+  .list th:nth-child(3), .list td:nth-child(3) { width: 16mm; }
+  .list th:nth-child(4), .list td:nth-child(4) { width: 24mm; }
+  .list th:nth-child(5), .list td:nth-child(5) { width: 18mm; }
+  .list th:nth-child(6), .list td:nth-child(6) { width: 16mm; }
+  .list th:nth-child(7), .list td:nth-child(7) { width: 19mm; }
+  .list th:nth-child(8), .list td:nth-child(8) { width: 15mm; }
+  .list th:nth-child(9), .list td:nth-child(9) { width: 15mm; }
+  .list th:nth-child(10), .list td:nth-child(10) { width: 26mm; }
   .list td { font-size: 8.5pt; }
-  .list td.nowrap { white-space: nowrap; }
+  .list td[colspan] { text-align: center; color: #5a6b7c; }
+  .list tr.rec td { border-top: 1pt solid #a9c2d8; }
+  .late { display: inline-block; margin-left: 1mm; padding: 0 1mm; border: 0.5pt solid #e0a3a0; border-radius: 1mm; color: #8a2b25; font-size: 7pt; line-height: 1.35; }
+  .list tbody tr:first-child td { border-top: .6pt solid #c2d4e4; }
+  .list td[rowspan] { vertical-align: middle; }
   @media print {
     body { background: #fff; }
     .toolbar { display: none; }
@@ -165,7 +188,7 @@ function sheetComplaint(row: ComplaintRow): string {
       ['应办结时间', text(row.Deadline)],
       ['处置形态', tr('处置形态', row.DisposeForm)],
       ['处置结果', tr('处置结果', row.DisposeResult)],
-      ['是否办结', tr('是否办结', row.IsCompleted)],
+      ['是否办结', tr('是否办结', row.IsCompleted) + (row.IsLateCompleted === '是' ? '（超期办结）' : '')],
       ['办结时间', text(row.CompleteTime)],
       ['是否超期', tr('是否超期', row.IsOverdue)],
       ['超期原因', text(row.OverdueReason)],
@@ -195,32 +218,68 @@ function sheetComplaint(row: ComplaintRow): string {
 export function complaintPrintHtml(code: string): string {
   const row = getComplaint(code)
   if (!row) throw new Error(`未找到编号为 ${code} 的信访记录`)
-  return frame(`信访登记表 ${code}`, sheetComplaint(row))
+  return frame(`信访登记表 ${code}`, sheetComplaint(row as unknown as ComplaintRow))
+}
+
+/** 台账标题里的年份：按记录接收时间归年，跨年写 2025-2026 */
+function reportYearRange(rows: Array<Record<string, unknown>>): string {
+  const years = new Set<string>()
+  for (const row of rows) {
+    const text = String(row.ReceiveTime ?? '').slice(0, 4)
+    if (/^\d{4}$/.test(text)) years.add(text)
+  }
+  if (!years.size) return String(new Date().getFullYear())
+  const sorted = [...years].sort()
+  return sorted.length === 1 ? sorted[0] : `${sorted[0]}-${sorted[sorted.length - 1]}`
 }
 
 export function listPrintHtml(filter: ComplaintFilter): string {
-  const { rows } = listComplaints({ ...filter, page: 1, pageSize: 200 })
-  const body = rows
-    .map(
-      (row, index) => `<tr>
-      <td>${index + 1}</td>
-      <td>${esc(row.OriginalCode)}</td>
-      <td>${tr('信访类别', row.Category)}</td>
-      <td>${text(row.TargetName) === '—' ? esc(row.OrganizationName ?? '—') : text(row.TargetName)}</td>
-      <td>${tr('线索来源', row.ClueSource)}</td>
-      <td>${tr('举报形式', row.ReportForm)}</td>
-      <td>${tr('处置形态', row.DisposeForm)}</td>
-      <td>${tr('是否办结', row.IsCompleted)}</td>
-      <td>${text(row.MainHandler)}</td>
-      <td class="nowrap">${text(row.ReceiveTime)}</td>
-    </tr>`,
-    )
+  const rows = filter.codes?.length
+    ? complaintsForExport(filter.codes)
+    : listComplaints({ ...filter, page: 1, pageSize: 200 }).rows
+  const targets = targetsForCodes(rows.map((row) => String(row.OriginalCode ?? '')))
+  // 一个被反映人一行：同一记录的前 3 列与后 6 列用 rowspan 合并成一块，只有「被反映人/单位」逐行
+  const groups = rows.map((row, index) => {
+    const people = targets[String(row.OriginalCode ?? '')] ?? []
+    return { row, people: people.length ? people : [null], no: index + 1 }
+  })
+  const personName = (row: (typeof rows)[number], person: TargetInput | null): string => {
+    if (person) {
+      return isUnitType(person.TargetType)
+        ? esc(person.OrganizationName || '—')
+        : text(person.TargetName)
+    }
+    return text(row.TargetName) === '—' ? esc(row.OrganizationName ?? '—') : text(row.TargetName)
+  }
+  const body = groups
+    .map(({ row, people, no }) => {
+      const span = people.length
+      return people
+        .map((person, index) => {
+          const name = `<td class="person">${personName(row, person)}</td>`
+          if (index > 0) return `<tr class="cont">${name}</tr>`
+          return `<tr class="rec">
+      <td rowspan="${span}">${no}</td>
+      <td rowspan="${span}">${esc(row.OriginalCode)}</td>
+      <td rowspan="${span}">${tr('信访类别', row.Category)}</td>
+      ${name}
+      <td rowspan="${span}">${tr('线索来源', row.ClueSource)}</td>
+      <td rowspan="${span}">${tr('举报形式', row.ReportForm)}</td>
+      <td rowspan="${span}">${tr('处置形态', row.DisposeForm)}</td>
+      <td rowspan="${span}">${tr('是否办结', row.IsCompleted)}${row.IsLateCompleted === '是' ? '<span class="late">超期办结</span>' : ''}</td>
+      <td rowspan="${span}">${text(row.MainHandler)}</td>
+      <td rowspan="${span}">${text(row.ReceiveTime)}</td>
+    </tr>`
+        })
+        .join('')
+    })
     .join('')
 
+  const reportTitle = `${reportYearRange(rows)}年信访件、问题线索登记表`
   return frame(
-    '信访台账',
+    reportTitle,
     `<section class="sheet">
-  <h1>信访（问题线索）台账</h1>
+  <h1>${esc(reportTitle)}</h1>
   <div class="org">连云港港口控股集团审查调查工作平台</div>
   <table class="list">
     <thead>
@@ -232,7 +291,7 @@ export function listPrintHtml(filter: ComplaintFilter): string {
     <tbody>${body || '<tr><td colspan="10">没有符合条件的记录</td></tr>'}</tbody>
   </table>
   <div class="foot">
-    <span>共 ${rows.length} 条</span>
+    <span>共 ${rows.length} 条${groups.some((g) => g.people.length > 1) ? `（${groups.reduce((n, g) => n + g.people.length, 0)} 位被反映人）` : ''}</span>
     <span>打印时间 ${esc(new Date().toLocaleString('zh-CN'))}</span>
   </div>
 </section>`,

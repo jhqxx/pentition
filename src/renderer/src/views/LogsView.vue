@@ -1,12 +1,5 @@
 <template>
   <div class="page">
-    <header class="page-head">
-      <div>
-        <h1 class="page-title">操作日志</h1>
-        <p class="page-subtitle">共 {{ total }} 条记录</p>
-      </div>
-    </header>
-
     <section class="block">
       <div class="toolbar">
         <el-select v-model="filter.module" placeholder="操作模块" clearable class="w-40" @change="reload">
@@ -15,15 +8,27 @@
         <el-select v-model="filter.type" placeholder="操作类型" clearable class="w-36" @change="reload">
           <el-option v-for="item in facets.types" :key="item" :label="item" :value="item" />
         </el-select>
+        <el-date-picker
+          v-model="range"
+          type="daterange"
+          value-format="YYYY-MM-DD"
+          start-placeholder="开始日期"
+          end-placeholder="结束日期"
+          unlink-panels
+          class="w-range"
+          @change="reload"
+        />
         <el-input v-model="filter.user" placeholder="操作人" clearable class="w-36" @keyup.enter="reload" />
         <el-input v-model="filter.keyword" placeholder="内容 / 对象" clearable class="w-52" @keyup.enter="reload" />
-        <el-button type="primary" :icon="Search" @click="reload">查询</el-button>
-        <el-button :icon="Refresh" @click="reset">重置</el-button>
-        <el-button :icon="Download" @click="exportLogs">导出Excel</el-button>
+        <span class="filter-actions">
+          <el-button :icon="Download" @click="exportLogs">导出 Excel</el-button>
+          <el-button type="primary" :icon="Search" @click="reload">查询</el-button>
+          <el-button :icon="Refresh" @click="reset">重置</el-button>
+        </span>
       </div>
 
       <div ref="tableWrap" class="table-wrap">
-      <el-table :data="rows" border stripe size="small" :height="tableHeight">
+      <el-table v-loading="loading" :data="rows" border stripe :height="tableHeight">
         <el-table-column label="时间" width="168" class-name="cell-mono">
           <template #default="{ row }">{{ shortTime(row.OperationTime) }}</template>
         </el-table-column>
@@ -33,13 +38,16 @@
             <span class="role" v-if="row.UserRole === 'Admin' && row.UserRealName !== '系统管理员'">管理员</span>
           </template>
         </el-table-column>
-        <el-table-column prop="OperationType" label="类型" width="110" />
-        <el-table-column prop="OperationModule" label="模块" width="120" />
-        <el-table-column prop="OperationContent" label="内容" min-width="240" show-overflow-tooltip />
-        <el-table-column prop="TargetName" label="对象" width="150" show-overflow-tooltip />
-        <el-table-column prop="IPAddress" label="IP" width="120" class-name="cell-mono" />
+        <el-table-column prop="OperationType" label="类型" width="100" />
+        <el-table-column prop="OperationModule" label="模块" width="110" />
+        <el-table-column prop="OperationContent" label="内容" min-width="180" show-overflow-tooltip />
+        <el-table-column prop="TargetName" label="对象" width="130" show-overflow-tooltip />
+        <el-table-column prop="IPAddress" label="IP" width="122" class-name="cell-mono" show-overflow-tooltip />
         <template #empty>
-          <div class="empty">没有匹配的日志</div>
+          <div class="tbl-empty">
+            <p>{{ hasLogFilter ? '没有符合条件的日志' : '暂无操作日志' }}</p>
+            <el-button v-if="hasLogFilter" link type="primary" @click="reset">清空筛选条件</el-button>
+          </div>
         </template>
       </el-table>
       </div>
@@ -61,7 +69,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted, reactive, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Download, Refresh, Search } from '@element-plus/icons-vue'
 
@@ -78,6 +86,12 @@ type LogRow = {
   OperationTime: string
 }
 
+const loading = ref(false)
+/** 日期范围单独存，reload 时映射成 from/to 传给后端 */
+const range = ref<[string, string] | null>(null)
+const hasLogFilter = computed(() =>
+  Boolean(filter.module || filter.type || filter.user || filter.keyword.trim() || range.value?.length),
+)
 const rows = ref<LogRow[]>([])
 const total = ref(0)
 const facets = reactive<{ modules: string[]; types: string[] }>({ modules: [], types: [] })
@@ -96,11 +110,21 @@ function shortTime(value: string | null): string {
   return String(value).slice(0, 19)
 }
 
+/** 日期范围映射成 from/to，和后端的 date() 比较对齐 */
+function query(): Record<string, unknown> {
+  return { ...filter, from: range.value?.[0] ?? '', to: range.value?.[1] ?? '' }
+}
+
 async function load(): Promise<void> {
-  const res = await window.api.logs.list({ ...filter })
-  if (!res?.ok) return
-  rows.value = res.data.rows
-  total.value = res.data.total
+  loading.value = true
+  try {
+    const res = await window.api.logs.list(query())
+    if (!res?.ok) return
+    rows.value = res.data.rows
+    total.value = res.data.total
+  } finally {
+    loading.value = false
+  }
 }
 
 function reload(): void {
@@ -113,11 +137,12 @@ function reset(): void {
   filter.type = ''
   filter.user = ''
   filter.keyword = ''
+  range.value = null
   reload()
 }
 
 async function exportLogs(): Promise<void> {
-  const res = await window.api.exports.logs({ ...filter })
+  const res = await window.api.exports.logs(query())
   if (!res?.ok) {
     ElMessage.error(res?.error ?? '导出失败')
     return
@@ -159,30 +184,20 @@ onMounted(async () => {
 }
 
 .page {
-  padding: 1.5rem 1.75rem 1.75rem;
-  min-height: calc(100vh - 3.25rem);
+  min-height: 100%;
   display: flex;
   flex-direction: column;
   gap: 1rem;
 }
 
-.page-title {
-  margin: 0;
-  font-size: 1.375rem;
-  font-weight: 600;
-  color: var(--ink);
-}
-
-.page-subtitle {
-  margin: 0.125rem 0 0;
-  font-size: 0.8125rem;
-  color: var(--ink-3);
+.filter-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: auto;
 }
 
 .block {
-  background: var(--surface);
-  border: 1px solid var(--rule);
-  border-radius: var(--r-md);
   padding: 0.75rem;
   display: flex;
   flex-direction: column;
@@ -199,6 +214,9 @@ onMounted(async () => {
 }
 
 .w-36 { width: 9rem; }
+.w-range {
+  width: 16rem;
+}
 .w-40 { width: 10rem; }
 .w-52 { width: 13rem; }
 

@@ -2,6 +2,16 @@
   font-size: clamp(13.5px, 0.24vw + 12.4px, 16.5px);
 
   --page: #eff5fb;
+  /* 页面与顶栏共用的左右留白，保证面包屑与内容左边缘严格对齐 */
+  --gutter: clamp(1.25rem, 2.2vw, 2.25rem);
+
+  /* Element Plus 默认字号是 px，会和本项目 rem 字号混排（下拉框 14px / 输入框 13.6px），
+     这里统一改成 rem，所有控件随根字号一起缩放 */
+  --el-font-size-base: 0.875rem;
+  --el-font-size-small: 0.8125rem;
+  --el-font-size-extra-small: 0.75rem;
+  --el-font-size-medium: 0.9375rem;
+  --el-font-size-large: 1rem;
   --surface: #ffffff;
   --surface-alt: #f6fafd;
   --surface-sunken: #e8f0f8;
@@ -13,6 +23,9 @@
   --harbor: #1f6fb2;
   --harbor-deep: #175a93;
   --harbor-deeper: #10456f;
+  /* 登录页：深蓝标题条与主按钮 */
+  --login-navy: #223f5c;
+  --login-navy-strong: #1a3349;
   --teal: #0e7c86;
   --signal: #b45309;
   --ok: #157f5d;
@@ -122,6 +135,12 @@ body {
   outline-offset: 0.125rem;
 }
 
+/* Element Plus 自带的浅色 focus 环在白底上对比不足，按钮统一成港口蓝 */
+.el-button:focus-visible {
+  outline: 0.125rem solid var(--harbor) !important;
+  outline-offset: 0.125rem;
+}
+
 .mono {
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
@@ -129,21 +148,60 @@ body {
 }
 
 .page {
-  padding: 1.5rem clamp(1.25rem, 2.2vw, 2.25rem) 2.5rem;
+  padding: 1.5rem var(--gutter) 2.5rem;
+}
+
+/* 页头排版只在这里定义一次：各页面不再各自覆盖字号与间距。
+   吸顶 + 通栏（负边距抵消 .page 的水平内缩），分隔线常驻，滚动时内容从发丝线下穿过 */
+.page-head {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin: 0 calc(-1 * var(--gutter)) 1rem;
+  padding: 0.75rem var(--gutter);
+  background: var(--page);
+  border-bottom: 1px solid var(--rule);
+}
+
+.head-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: none;
 }
 
 .page-title {
-  margin: 0 0 0.375rem;
-  font-size: clamp(1.25rem, 0.5vw + 1.05rem, 1.5rem);
+  margin: 0;
+  font-size: 1.375rem;
   font-weight: 600;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.005em;
+  line-height: 1.3;
   color: var(--ink);
 }
 
 .page-subtitle {
-  margin: 0 0 1.125rem;
+  margin: 0.1875rem 0 0;
   font-size: 0.8125rem;
+  line-height: 1.5;
   color: var(--ink-3);
+}
+
+/* 表单控件字号统一：Element Plus 的下拉框内部写死 14px，会和输入框的 0.875rem 混排 */
+.el-select,
+.el-select__wrapper,
+.el-select__selected-item,
+.el-select__placeholder,
+.el-select-dropdown__item,
+.el-input__inner,
+.el-textarea__inner,
+.el-date-editor,
+.el-checkbox__label,
+.el-radio__label {
+  font-size: 0.875rem;
 }
 
 .section-card {
@@ -231,13 +289,13 @@ body {
   --el-button-active-border-color: var(--harbor-deeper);
 }
 
-.el-button:not(.el-button--primary):not(.el-button--text):not(.is-link) {
+.el-button:not(.el-button--primary):not(.el-button--danger):not(.el-button--text):not(.is-link) {
   background: var(--surface);
   border-color: var(--rule-2);
   color: var(--ink-2);
 }
 
-.el-button:not(.el-button--primary):not(.el-button--text):not(.is-link):hover {
+.el-button:not(.el-button--primary):not(.el-button--danger):not(.el-button--text):not(.is-link):hover {
   background: var(--surface-alt);
   border-color: var(--harbor);
   color: var(--harbor);
@@ -269,13 +327,14 @@ body {
 }
 
 .el-table th.el-table__cell {
-  font-weight: 500;
-  font-size: 0.75rem;
-  letter-spacing: 0.03em;
+  font-weight: 600;
+  font-size: 0.875rem;
+  letter-spacing: 0.01em;
+  color: var(--ink-2);
 }
 
 .el-table td.el-table__cell {
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
 }
 
 .el-table--striped .el-table__body tr.el-table__row--striped td.el-table__cell {
@@ -432,6 +491,36 @@ body {
   background: currentColor;
 }
 
+/* 状态：整行底色表达唯一状态（优先级：超期 > 临期 > 已办结 > 办理中；办理中保持默认白） */
+.el-table .el-table__body tr.row-tone-overdue > td,
+.el-table .el-table__body tr.row-tone-overdue:hover > td {
+  background: #f8a2a2 !important;
+}
+
+.el-table .el-table__body tr.row-tone-soon > td,
+.el-table .el-table__body tr.row-tone-soon:hover > td {
+  background: #fff1b8 !important;
+}
+
+.el-table .el-table__body tr.row-tone-done > td,
+.el-table .el-table__body tr.row-tone-done:hover > td {
+  background: #eaf6ef !important;
+}
+
+.el-table .status-text {
+  font-weight: 500;
+  color: #1b2a38;
+}
+
+.el-table .row-tone-overdue .status-text,
+.el-table .row-tone-soon .status-text {
+  font-weight: 600;
+}
+
+.el-table .row-tone-overdue .status-text {
+  color: #7a1f18;
+}
+
 .pill-processing {
   color: #175a93;
   background: #e8f1fa;
@@ -460,4 +549,488 @@ body {
   color: #8a4a12;
   background: #fbf0e3;
   border-color: #efd9bd;
+}
+
+/* 操作列：链接按钮收窄，给「查看/编辑/归并/删除」四个动作留位 */
+.el-table td.cell-actions .cell {
+  padding: 0 0.5rem;
+}
+
+.el-table td.cell-actions .el-button.is-link {
+  padding: 0;
+  font-size: 0.8125rem;
+}
+
+.el-table td.cell-actions .el-button + .el-button {
+  margin-left: 0.5rem;
+}
+
+/* 表格单元格：单行省略（长文本靠 tooltip 预览，完整内容进详情） */
+.el-table td.cell-target .cell {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 编号类列用更小的等宽字号，13 位编号也能塞进 124px */
+.el-table td.cell-mono .cell {
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.el-table .cell-ellipsis {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* 长文本 tooltip：限宽 + 舒适行高，不再横向铺满 */
+.el-popper.summary-tip {
+  max-width: 22rem;
+  padding: 0.5rem 0.625rem;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  white-space: normal;
+  word-break: break-word;
+}
+
+/* 其余列的自带 tooltip 同样限宽 */
+.el-popper.el-table__tooltip {
+  max-width: 20rem;
+}
+
+/* 表格勾选计数（跨页保留勾选时给出明确反馈） */
+.sel-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  height: 2rem;
+  padding: 0 0 0 0.625rem;
+  margin-left: 0.25rem;
+  border-left: 1px solid var(--rule);
+  color: var(--ink-3);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.sel-chip .el-button {
+  font-size: 0.8125rem;
+}
+
+/* 选择导出列 */
+.col-hint {
+  margin: 0 0 0.75rem;
+  font-size: 0.8125rem;
+  color: var(--ink-2);
+}
+
+.col-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding-bottom: 0.625rem;
+  border-bottom: 1px solid var(--rule);
+}
+
+.col-spacer {
+  flex: 1;
+}
+
+.col-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.125rem 1rem;
+  max-height: 18rem;
+  overflow: auto;
+  padding: 0.5rem 0;
+}
+
+.col-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.125rem 0;
+}
+
+.col-row :deep(.el-checkbox),
+.col-row .el-checkbox {
+  margin-right: 0;
+}
+
+.col-only {
+  opacity: 0;
+  font-size: 0.75rem;
+  transition: opacity 0.12s;
+}
+
+.col-row:hover .col-only,
+.col-row:focus-within .col-only {
+  opacity: 1;
+}
+
+/* 导出面板（右抽屉）：一个面板装下「哪些行 + 哪些列」两个决定 */
+.export-drawer .el-drawer__body {
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.ex-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 1.125rem 1rem 0.875rem 1.25rem;
+  border-bottom: 1px solid var(--rule);
+}
+
+.ex-head-text {
+  min-width: 0;
+}
+
+.ex-close {
+  flex: none;
+  margin-top: -0.125rem;
+  color: var(--ink-3);
+}
+
+.ex-head h2 {
+  margin: 0 0 0.25rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.ex-head p {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--ink-2);
+}
+
+.ex-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.ex-sec {
+  padding: 0.875rem 1.25rem 0;
+}
+
+.ex-sec h3 {
+  margin: 0 0 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.ex-sec-grow {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 0.5rem;
+}
+
+.ex-count {
+  margin-left: 0.375rem;
+  font-weight: 400;
+  color: var(--ink-3);
+}
+
+.ex-scope {
+  width: 100%;
+}
+
+.ex-scope :deep(.el-radio-button),
+.ex-scope .el-radio-button {
+  flex: 1;
+}
+
+.ex-scope .el-radio-button__inner {
+  width: 100%;
+}
+
+.ex-hint {
+  margin: 0.5rem 0 0;
+  font-size: 0.75rem;
+  color: var(--ink-3);
+}
+
+.ex-tools {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin-bottom: 0.375rem;
+}
+
+.ex-tools .el-input {
+  flex: 1;
+}
+
+.ex-tools .el-button {
+  font-size: 0.8125rem;
+}
+
+.ex-list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  margin: 0 -1.25rem;
+  padding: 0 1.25rem 0.5rem;
+}
+
+.ex-group {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin: 0.5rem 0 0.125rem;
+  padding: 0.25rem 0;
+  background: var(--surface);
+  font-size: 0.75rem;
+  color: var(--ink-3);
+}
+
+.ex-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-height: 1.875rem;
+}
+
+.ex-row .el-checkbox {
+  margin-right: 0;
+}
+
+.ex-row .el-checkbox__label {
+  font-size: 0.8125rem;
+  color: var(--ink);
+}
+
+.ex-only {
+  opacity: 0.62;
+  font-size: 0.75rem;
+  transition: opacity 0.12s;
+}
+
+.ex-row:hover .ex-only,
+.ex-only:focus-visible {
+  opacity: 1;
+}
+
+.ex-foot-main {
+  display: grid;
+  gap: 0.25rem;
+}
+.ex-last {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--ink-3);
+}
+.ex-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 1.25rem;
+  border-top: 1px solid var(--rule);
+  background: var(--surface);
+}
+
+.ex-summary {
+  font-size: 0.8125rem;
+  color: var(--ink-2);
+}
+
+.ex-summary.is-warn {
+  color: var(--danger, #b42318);
+}
+
+.ex-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* 表头右键菜单：只做两件事——导这一列 / 打开导出面板 */
+.col-menu {
+  position: fixed;
+  z-index: 3000;
+  min-width: 11.5rem;
+  padding: 0.25rem;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-sm);
+  box-shadow: 0 0.5rem 1.5rem rgba(16, 22, 29, 0.12);
+}
+
+.col-menu-item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.875rem;
+  width: 100%;
+  padding: 0.4375rem 0.5rem;
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.8125rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.col-menu-item:hover,
+.col-menu-item:focus-visible {
+  background: var(--harbor-soft, #eaf2fa);
+  outline: none;
+}
+
+.col-menu-name {
+  font-weight: 500;
+}
+
+.col-menu-hint {
+  color: var(--ink-3);
+  font-size: 0.75rem;
+}
+
+/* 固定列（sticky）要压在表格自绘滚动条之上，否则竖滚动条会盖住「操作」列的按钮 */
+.el-table .el-scrollbar__bar {
+  z-index: 1;
+}
+.el-table .el-table-fixed-column--left,
+.el-table .el-table-fixed-column--right {
+  z-index: 2;
+}
+/* EP 自带的 10px 阴影伪元素在纯色行上会显示成一条灰带（看着像滚动条），改用 1px 边线分隔 */
+.el-table .el-table-fixed-column--right.is-first-column::before {
+  display: none;
+}
+.el-table th.cell-actions,
+.el-table td.cell-actions {
+  border-left: 1px solid var(--rule);
+}
+.el-table td.cell-actions .cell {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  /* 固定列的内边距会被 EP 清掉，这里补回统一右内缩，各行操作按钮才落在同一竖线 */
+  padding-right: 0.8125rem;
+}
+
+/* —— 动作摆放：动作贴到它作用的对象上，不再单占一条页头 —— */
+.table-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.pane-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.625rem;
+}
+
+.home-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  justify-content: space-between;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--rule);
+}
+
+.home-toolbar .filter-actions {
+  margin-left: auto;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.toolbar-meta {
+  color: var(--ink-3);
+  font-size: 0.75rem;
+}
+
+.save-bar {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin: 1rem calc(-1 * var(--gutter)) 0;
+  padding: 0.75rem var(--gutter);
+  background: var(--page);
+  border-top: 1px solid var(--rule);
+}
+
+.save-hint {
+  margin-right: auto;
+  color: #7a4a05;
+  font-size: 0.8125rem;
+}
+
+/* 表格空状态：说明 + 清空筛选 */
+.tbl-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 2.25rem 0 1.5rem;
+  color: var(--ink-3);
+  font-size: 0.8125rem;
+}
+.tbl-empty p {
+  margin: 0;
+}
+
+/* 内容分区卡片：列表、表单、设置共用同一套材质与间距 */
+.block {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-md);
+  padding: 0.9375rem 1rem 0.625rem;
+  margin-bottom: 0.875rem;
+}
+.block-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+.block-title {
+  margin: 0 0 0.75rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--ink);
+  border-left: 2px solid var(--harbor);
+  padding-left: 0.5rem;
+  line-height: 1.2;
+}
+.block-title.no-border {
+  border-left: none;
+  padding-left: 0;
+  margin-bottom: 0;
+}
+.block-head .block-title {
+  margin-bottom: 0;
+}
+
+/* 新增/编辑后的行高亮：一闪即收，不长期占用背景色 */
+@keyframes rowFlash {
+  0% { background: rgba(31, 111, 178, 0.18); }
+  100% { background: transparent; }
+}
+.el-table .el-table__body tr.row-flash > td {
+  animation: rowFlash 1.4s ease-out;
 }

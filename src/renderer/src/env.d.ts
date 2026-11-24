@@ -14,18 +14,57 @@ interface Window {
       login: (payload: { username: string; password: string }) => Promise<AnyResult>
       current: () => Promise<AnyResult>
       logout: () => Promise<AnyResult>
+      remember: {
+        get: () => Promise<
+          AnyResult<{
+            accounts: { username: string; password: string }[]
+            lastUsername: string
+          }>
+        >
+        save: (payload: {
+          remember: boolean
+          username: string
+          password: string
+        }) => Promise<AnyResult<{ saved: boolean; encrypted: boolean }>>
+        clear: () => Promise<AnyResult>
+      }
+    }
+    profile: {
+      get: () => Promise<
+        AnyResult<{
+          Id: number
+          Username: string
+          RealName: string
+          Role: string
+          Department: string
+          Email: string
+          Phone: string
+          LastLoginTime: string | null
+          CreateTime: string
+        }>
+      >
+      save: (input: {
+        realName: string
+        department: string
+        email: string
+        phone: string
+      }) => Promise<AnyResult>
+      password: (payload: { oldPassword: string; newPassword: string }) => Promise<AnyResult>
     }
     complaints: {
       list: (filter: unknown) => Promise<AnyResult>
       get: (code: string) => Promise<AnyResult>
-      nextCode: () => Promise<AnyResult>
-      save: (payload: { isNew: boolean; data: Record<string, string | null> }) => Promise<AnyResult>
+      nextCode: (kind?: 'clue' | 'letter') => Promise<AnyResult>
+      convert: (code: string, mode?: 'basic' | 'full') => Promise<AnyResult>
+      save: (payload: { isNew: boolean; data: Record<string, unknown> }) => Promise<AnyResult>
+      handle: (data: Record<string, unknown>) => Promise<AnyResult>
       remove: (codes: string[]) => Promise<AnyResult>
       restore: (codes: string[]) => Promise<AnyResult>
       clueOptions: () => Promise<AnyResult>
       letters: (clueCode: string) => Promise<AnyResult>
       assign: (payload: { codes: string[]; clueCode: string | null }) => Promise<AnyResult>
       importExcel: () => Promise<AnyResult>
+      importTemplate: () => Promise<AnyResult>
       print: (code: string) => Promise<AnyResult>
       printList: (filter: unknown) => Promise<AnyResult>
     }
@@ -61,19 +100,45 @@ interface Window {
     stats: {
       overview: () => Promise<AnyResult>
       monthly: () => Promise<AnyResult>
+      dashboard: () => Promise<AnyResult>
       groups: (field: 'ClueSource' | 'DisposeForm' | 'UndertakeDept') => Promise<AnyResult>
     }
     exports: {
-      complaints: (payload?: string[] | { codes?: string[]; category?: string }) => Promise<AnyResult>
+      columns: () => Promise<
+        AnyResult<{ columns: string[]; groups: Array<{ title: string; columns: string[] }> }>
+      >
+      preview: (payload?: {
+        codes?: string[]
+        category?: string
+        filter?: Record<string, unknown>
+      }) => Promise<AnyResult<{ title: string; columns: string[]; rows: Array<Record<string, string>>; total: number }>>
+      complaints: (
+        payload?: string[] | {
+          codes?: string[]
+          category?: string
+          filter?: Record<string, unknown>
+          columns?: string[]
+        },
+      ) => Promise<AnyResult>
       logs: (filter: unknown) => Promise<AnyResult>
       stats: () => Promise<AnyResult>
     }
     settings: {
       get: () => Promise<AnyResult>
       pick: (kind: 'db' | 'attachments') => Promise<AnyResult>
-      save: (payload: { dbPath: string; attachmentsDir: string; copyData?: boolean }) => Promise<AnyResult>
+      save: (payload: {
+        dbPath: string
+        attachmentsDir: string
+        letterSlaDays?: number
+        clueSlaDays?: number
+        soonDays?: number
+        disposeDays?: number
+        allowUnlinkClue?: boolean
+        copyData?: boolean
+      }) => Promise<AnyResult>
     }
     app: {
+      reveal: (target: 'db' | 'attachments' | 'downloads') => Promise<AnyResult<boolean>>
       meta: () => Promise<AnyResult>
     }
   }

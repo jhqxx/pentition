@@ -7,18 +7,34 @@ const api = {
     login: (payload: { username: string; password: string }) => invoke('auth:login', payload),
     current: () => invoke('auth:current'),
     logout: () => invoke('auth:logout'),
+    remember: {
+      get: () => invoke('auth:remember:get'),
+      save: (payload: { remember: boolean; username: string; password: string }) =>
+        invoke('auth:remember:save', payload),
+      clear: () => invoke('auth:remember:clear'),
+    },
+  },
+  profile: {
+    get: () => invoke('profile:get'),
+    save: (input: { realName: string; department: string; email: string; phone: string }) =>
+      invoke('profile:save', input),
+    password: (payload: { oldPassword: string; newPassword: string }) =>
+      invoke('profile:password', payload),
   },
   complaints: {
     list: (filter: unknown) => invoke('complaint:list', filter),
     get: (code: string) => invoke('complaint:get', code),
-    nextCode: () => invoke('complaint:nextCode'),
-    save: (payload: { isNew: boolean; data: Record<string, string | null> }) => invoke('complaint:save', payload),
+    nextCode: (kind?: 'clue' | 'letter') => invoke('complaint:nextCode', kind),
+    convert: (code: string, mode?: 'basic' | 'full') => invoke('complaint:convert', { code, mode }),
+    save: (payload: { isNew: boolean; data: Record<string, unknown> }) => invoke('complaint:save', payload),
+    handle: (data: Record<string, unknown>) => invoke('complaint:handle', { data }),
     remove: (codes: string[]) => invoke('complaint:delete', codes),
     restore: (codes: string[]) => invoke('complaint:restore', codes),
     clueOptions: () => invoke('complaint:clueOptions'),
     letters: (clueCode: string) => invoke('complaint:letters', clueCode),
     assign: (payload: { codes: string[]; clueCode: string | null }) => invoke('complaint:assign', payload),
     importExcel: () => invoke('import:complaints'),
+    importTemplate: () => invoke('import:template'),
     print: (code: string) => invoke('print:complaint', code),
     printList: (filter: unknown) => invoke('print:list', filter),
   },
@@ -54,21 +70,43 @@ const api = {
   stats: {
     overview: () => invoke('stats:overview'),
     monthly: () => invoke('stats:monthly'),
+    dashboard: () => invoke('stats:dashboard'),
     groups: (field: 'ClueSource' | 'DisposeForm' | 'UndertakeDept') => invoke('stats:groups', field),
   },
   exports: {
-    complaints: (payload?: string[] | { codes?: string[]; category?: string }) => invoke('export:complaints', payload),
+    columns: () => invoke('export:columns'),
+    preview: (payload?: {
+      codes?: string[]
+      category?: string
+      filter?: Record<string, unknown>
+    }) => invoke('export:preview', payload),
+    complaints: (
+      payload?: string[] | {
+        codes?: string[]
+        category?: string
+        filter?: Record<string, unknown>
+        columns?: string[]
+      },
+    ) => invoke('export:complaints', payload),
     logs: (filter: unknown) => invoke('export:logs', filter),
     stats: () => invoke('export:stats'),
   },
   settings: {
     get: () => invoke('settings:get'),
     pick: (kind: 'db' | 'attachments') => invoke('settings:pick', kind),
-    save: (payload: { dbPath: string; attachmentsDir: string; copyData?: boolean }) =>
-      invoke('settings:save', payload),
+    save: (payload: {
+      dbPath: string
+      attachmentsDir: string
+      letterSlaDays?: number
+      clueSlaDays?: number
+      soonDays?: number
+      disposeDays?: number
+      copyData?: boolean
+    }) => invoke('settings:save', payload),
   },
   app: {
-    meta: () => invoke('app:meta'),
+    reveal: (target: 'db' | 'attachments' | 'downloads') => invoke('app:reveal', target),
+  meta: () => invoke('app:meta'),
   },
 }
 

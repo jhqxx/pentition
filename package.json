@@ -1,6 +1,6 @@
 {
   "name": "petition-desktop",
-  "version": "0.2.9",
+  "version": "0.3.0",
   "description": "Mall Desktop demo (Electron + Vue3 + Element Plus + SQLite)",
   "main": "./out/main/index.js",
   "author": "lbxq",
@@ -17,7 +17,7 @@
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",
-    "xlsx": "0.18.5"
+    "xlsx-js-style": "1.2.0"
   },
   "devDependencies": {
     "@element-plus/icons-vue": "^2.3.2",
