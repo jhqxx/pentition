@@ -2,8 +2,8 @@
 
 把原 WPF 项目 `petition-2026.10.7` 的功能与数据库搬到 Electron：同一套 5 张业务表、同一批字典与用户种子、同一套编号规则，界面重做但字段与流程一一对应。数据全部落本机 SQLite，不依赖任何后端服务。
 
-- 代码仓库：<http://10.175.2.11:8082/lbxq/pentition-desktop>
-- 包仓库：<http://10.175.2.11:8082/lbxq/pentition-desktop/-/packages>
+- 代码仓库：<http://10.175.2.11:8082/lbxq/pentition>
+- 包仓库：<http://10.175.2.11:8082/lbxq/pentition/-/packages>
 - 默认账号：`admin / admin123`
 
 ---
@@ -36,7 +36,7 @@
 
 ## 二、下载与发布产物
 
-Windows 安装包由内网 **GitLab Runner** 构建后自动发布到 [GitLab 包仓库](http://10.175.2.11:8082/lbxq/pentition-desktop/-/packages) 与 [Releases](http://10.175.2.11:8082/lbxq/pentition-desktop/-/releases)；macOS 的 dmg 在 macOS 本机构建。
+Windows 安装包由内网 **GitLab Runner** 构建后自动发布到 [GitLab 包仓库](http://10.175.2.11:8082/lbxq/pentition/-/packages) 与 [Releases](http://10.175.2.11:8082/lbxq/pentition/-/releases)；macOS 的 dmg 在 macOS 本机构建。
 
 | 文件 | 用途 |
 | --- | --- |

@@ -1,7 +1,7 @@
 # 内网 DevOps 总体方案 v1
 
 > 环境：内网 `10.175.2.11`（24C / 31G / 938G），单机
-> 业务：pentition-desktop（Electron 信访系统桌面端）+ 后续后端服务
+> 业务：pentition（Electron 信访系统桌面端）+ 后续后端服务
 > 目标：把「需求 → 代码 → 构建 → 测试 → 发布 → 反馈」串成一条可追溯的链路
 > 状态：待决策（D1 / D2 需要拍板）
 
@@ -117,7 +117,7 @@
                 │ webhook: 推送事件 → 禅道
 ┌───────────────▼──────────────────────────────────────────────┐
 │  代码与构建层                GitLab 10.175.2.11:8082          │
-│  ├─ 仓库 lbxq/pentition-desktop（master / dev）               │
+│  ├─ 仓库 lbxq/pentition（master / dev）               │
 │  ├─ Merge Request + Code Review                              │
 │  ├─ Runner（docker executor, host 网络, wine32 镜像）         │
 │  └─ .gitlab-ci.yml: verify → build(NSIS+portable) → upload →  │

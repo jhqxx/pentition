@@ -121,7 +121,7 @@ release:
       set -eu
       TAG="$APP_TAG"
       VER="${TAG#v}"
-      PKG="http://10.175.2.11:8082/lbxq/petition-desktop/-/packages"
+      PKG="http://10.175.2.11:8082/lbxq/pentition/-/packages"
       DL="http://10.175.2.11:8082/api/v4/projects/$GITLAB_PROJECT_ID/packages/generic/$GITLAB_PKG_NAME"
       DESC="Petition ${VER}：Windows 安装包与免安装版由 GitLab Runner 构建（wine 交叉编译），产物见包仓库 ${PKG}。"
       BODY=$(printf '{"name":"%s","tag_name":"%s","description":"%s"}' "$TAG" "$TAG" "$DESC")
