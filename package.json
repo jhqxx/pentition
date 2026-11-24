@@ -1,7 +1,7 @@
 {
   "name": "petition",
   "version": "0.3.1",
-  "description": "Mall Desktop demo (Electron + Vue3 + Element Plus + SQLite)",
+  "description": "信访管理系统桌面版（审查调查工作平台）— Electron + Vue3 + Element Plus + SQLite",
   "main": "./out/main/index.js",
   "author": "lbxq",
   "license": "UNLICENSED",

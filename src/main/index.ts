@@ -94,7 +94,7 @@ function createWindow(): void {
     minWidth: LOGIN_MIN.width,
     minHeight: LOGIN_MIN.height,
     show: false,
-    title: 'Mall Desktop',
+    title: '审查调查工作平台',
     icon: devIcon,
     autoHideMenuBar: true,
     backgroundColor: '#f4f6fa',
