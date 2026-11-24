@@ -40,11 +40,11 @@ Windows 安装包由内网 **GitLab Runner** 构建后自动发布到 [GitLab �
 
 | 文件 | 用途 |
 | --- | --- |
-| `PetitionDesktop-Setup-x.y.z.exe` | Windows 安装包：装到本机、建开始菜单/桌面快捷方式、可在「应用和功能」里卸载 |
-| `PetitionDesktop-x.y.z-portable.exe` | Windows **免安装**：单个 exe，双击即用，不写注册表，删掉文件就干净 |
-| `PetitionDesktop-x.y.z-arm64.dmg` | macOS（Apple Silicon），拖进 Applications；本机 `pnpm build:mac` 产出，不上传 |
+| `Petition-Setup-x.y.z.exe` | Windows 安装包：装到本机、建开始菜单/桌面快捷方式、可在「应用和功能」里卸载 |
+| `Petition-x.y.z-portable.exe` | Windows **免安装**：单个 exe，双击即用，不写注册表，删掉文件就干净 |
+| `Petition-x.y.z-arm64.dmg` | macOS（Apple Silicon），拖进 Applications；本机 `pnpm build:mac` 产出，不上传 |
 
-免安装版与安装版跑同一份代码、同样把数据存在 `%APPDATA%\PetitionDesktop\`，区别只在「有没有往系统里装东西」。
+免安装版与安装版跑同一份代码、数据都放在程序同级的 `data/`，区别只在「有没有往系统里装东西」。
 
 > 未签名：macOS 首次打开需右键 →「打开」；Windows 若弹 SmartScreen，点「更多信息」→「仍要运行」。
 
@@ -141,7 +141,7 @@ git checkout master && git merge --no-ff dev && git push origin master
 #    package.json 里 "version": "0.2.9"
 
 # 4. 打 tag 并推送 —— 这一步才会真正构建并发布
-git tag -a v0.2.9 -m "PetitionDesktop 0.2.9"
+git tag -a v0.2.9 -m "Petition 0.2.9"
 git push origin v0.2.9
 ```
 

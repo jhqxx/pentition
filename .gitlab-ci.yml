@@ -79,7 +79,7 @@ build-windows:
     - pnpm exec electron-builder --win nsis portable --x64 --publish never
     - ls -lh release/*.exe
   artifacts:
-    name: "PetitionDesktop-$APP_VERSION"
+    name: "Petition-$APP_VERSION"
     paths:
       - release/*.exe
       - release/*.yml
@@ -123,7 +123,7 @@ release:
       VER="${TAG#v}"
       PKG="http://10.175.2.11:8082/lbxq/petition-desktop/-/packages"
       DL="http://10.175.2.11:8082/api/v4/projects/$GITLAB_PROJECT_ID/packages/generic/$GITLAB_PKG_NAME"
-      DESC="PetitionDesktop ${VER}：Windows 安装包与免安装版由 GitLab Runner 构建（wine 交叉编译），产物见包仓库 ${PKG}。"
+      DESC="Petition ${VER}：Windows 安装包与免安装版由 GitLab Runner 构建（wine 交叉编译），产物见包仓库 ${PKG}。"
       BODY=$(printf '{"name":"%s","tag_name":"%s","description":"%s"}' "$TAG" "$TAG" "$DESC")
 
       code=$(curl -s -o /tmp/rel.json -w '%{http_code}' -X POST "$GITLAB_API/projects/$GITLAB_PROJECT_ID/releases" \
@@ -140,9 +140,9 @@ release:
 
       for kind in Setup portable; do
         if [ "$kind" = "Setup" ]; then
-          fname="PetitionDesktop-Setup-$VER.exe"
+          fname="Petition-Setup-$VER.exe"
         else
-          fname="PetitionDesktop-$VER-portable.exe"
+          fname="Petition-$VER-portable.exe"
         fi
         ename=$(printf '%s' "$fname" | sed 's/ /%20/g')
         LINK=$(printf '{"name":"%s","url":"%s/%s/%s","link_type":"package"}' "$fname" "$DL" "$VER" "$ename")

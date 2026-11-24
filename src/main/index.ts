@@ -11,6 +11,8 @@ import { installLogging, logPath } from './logger'
 // 数据目录跟着程序走：<程序目录>/data。整个目录复制到 U 盘/另一台机器即可继续用。
 // MALL_USER_DATA 仅用于自动化冒烟测试时临时指定数据目录。
 const legacyUserData = app.getPath('userData')
+// 项目改名（petition-desktop → petition）后，老的 userData 目录还在旧名字下，迁移时两个都找一遍
+const previousUserData = path.join(app.getPath('appData'), 'petition-desktop')
 const envUserData = process.env['MALL_USER_DATA']
 const portableDir = portableDataDir({
   isPackaged: app.isPackaged,
@@ -30,6 +32,10 @@ app.setPath('userData', dataDir)
 if (!envUserData) {
   const migrated = migrateLegacyData(legacyUserData, dataDir)
   if (migrated.length) console.log(`[portable] 已从 ${legacyUserData} 迁移：${migrated.join(', ')}`)
+  else {
+    const older = migrateLegacyData(previousUserData, dataDir)
+    if (older.length) console.log(`[portable] 已从旧目录 ${previousUserData} 迁移：${older.join(', ')}`)
+  }
 }
 installLogging(dataDir)
 console.log(`[portable] 数据目录：${dataDir}`)

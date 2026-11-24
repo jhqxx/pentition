@@ -44,7 +44,7 @@ const MIGRATE_FILES = ['petition.db', 'petition.db-wal', 'petition.db-shm', 'set
 const MIGRATE_DIRS = ['Attachments']
 
 /**
- * 老版本的数据在系统 userData 下（如 ~/Library/Application Support/petition-desktop）。
+ * 老版本的数据在系统 userData 下（早期是 petition-desktop，现为 petition）。
  * 首次切到便携目录时整体复制一份，原目录保持不动，随时可以回退。
  */
 export function migrateLegacyData(fromDir: string, toDir: string): string[] {
