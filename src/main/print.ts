@@ -135,7 +135,7 @@ function sheetComplaint(row: ComplaintRow): string {
 
   return `<section class="sheet">
   <h1>信访（问题线索）登记表</h1>
-  <div class="org">连云港港口控股集团审查调查工作平台</div>
+  <div class="org">审查调查工作平台</div>
 
   <h2>基本信息</h2>
   <table>
@@ -280,7 +280,7 @@ export function listPrintHtml(filter: ComplaintFilter): string {
     reportTitle,
     `<section class="sheet">
   <h1>${esc(reportTitle)}</h1>
-  <div class="org">连云港港口控股集团审查调查工作平台</div>
+  <div class="org">审查调查工作平台</div>
   <table class="list">
     <thead>
       <tr>
