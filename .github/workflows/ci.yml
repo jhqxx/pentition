@@ -70,6 +70,7 @@ jobs:
           code=${PIPESTATUS[0]}
           if [ $code -ne 0 ]; then
             { echo '### pnpm install 失败（Windows）'; echo '```'; tail -80 install.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+            grep -E 'ERR_PNPM|Error:|error |gyp ERR|prebuild|ELIFECYCLE' install.log | tail -6 | while IFS= read -r line; do echo "::error title=pnpm-install-$tag::$line"; done
             exit $code
           fi
       - run: pnpm build
@@ -106,6 +107,7 @@ jobs:
           code=${PIPESTATUS[0]}
           if [ $code -ne 0 ]; then
             { echo '### pnpm install 失败（macOS）'; echo '```'; tail -80 install.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+            grep -E 'ERR_PNPM|Error:|error |gyp ERR|prebuild|ELIFECYCLE' install.log | tail -6 | while IFS= read -r line; do echo "::error title=pnpm-install-$tag::$line"; done
             exit $code
           fi
       - run: pnpm build
