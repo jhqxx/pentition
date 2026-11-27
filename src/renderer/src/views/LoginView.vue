@@ -216,6 +216,10 @@ async function submit(): Promise<void> {
     }
 
     setUser(res.data)
+    // 默认账号首次登录：登录后提示修改密码
+    if (form.username.trim() === 'admin' && form.password === 'admin123') {
+      sessionStorage.setItem('pwd-default-hint', '1')
+    }
     ElMessage.success('登录成功')
     router.replace((route.query.redirect as string) || '/home')
   } finally {

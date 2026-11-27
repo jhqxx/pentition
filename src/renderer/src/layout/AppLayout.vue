@@ -137,6 +137,35 @@
         </div>
       </template>
     </el-dialog>
+
+    <el-dialog
+      v-model="forcePwdOpen"
+      title="修改登录密码"
+      width="26rem"
+      align-center
+      :close-on-click-modal="false"
+    >
+      <p class="pwd-alert">检测到当前使用的是默认密码（admin / admin123），为保障数据安全，请立即修改。</p>
+      <el-form label-width="4.5rem" label-position="left" @submit.prevent>
+        <el-form-item label="原密码">
+          <el-input v-model="forcePwd.old" type="password" show-password placeholder="请输入原密码" />
+        </el-form-item>
+        <el-form-item label="新密码">
+          <el-input v-model="forcePwd.new" type="password" show-password placeholder="至少 6 位" />
+        </el-form-item>
+        <el-form-item label="确认">
+          <el-input v-model="forcePwd.confirm" type="password" show-password placeholder="再次输入新密码" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <div class="dlg-foot">
+          <span class="dlg-foot-right">
+            <el-button @click="forcePwdOpen = false">稍后再说</el-button>
+            <el-button type="primary" :loading="savingForcePwd" @click="saveForcePwd">保存新密码</el-button>
+          </span>
+        </div>
+      </template>
+    </el-dialog>
   </el-container>
 </template>
 
@@ -286,6 +315,9 @@ const savingPwd = ref(false)
 const profileMeta = reactive({ username: '', role: '', lastLoginTime: '' })
 const profileForm = reactive({ realName: '', department: '', email: '', phone: '' })
 const pwdForm = reactive({ oldPassword: '', newPassword: '', confirm: '' })
+const forcePwdOpen = ref(false)
+const savingForcePwd = ref(false)
+const forcePwd = reactive({ old: '', new: '', confirm: '' })
 
 function readNumber(key: string, fallback: number): number {
   const raw = localStorage.getItem(key)
@@ -450,6 +482,39 @@ async function savePassword(): Promise<void> {
   ElMessage.success('密码已修改')
 }
 
+async function saveForcePwd(): Promise<void> {
+  if (!forcePwd.old) {
+    ElMessage.warning('请输入原密码')
+    return
+  }
+  if (forcePwd.new.length < 6) {
+    ElMessage.warning('新密码至少 6 位')
+    return
+  }
+  if (forcePwd.old === forcePwd.new) {
+    ElMessage.warning('新密码不能与原密码相同')
+    return
+  }
+  if (forcePwd.new !== forcePwd.confirm) {
+    ElMessage.warning('两次输入的新密码不一致')
+    return
+  }
+  savingForcePwd.value = true
+  const res = await window.api.profile.password({ oldPassword: forcePwd.old, newPassword: forcePwd.new })
+  savingForcePwd.value = false
+  if (!res?.ok) {
+    ElMessage.error(res?.error ?? '修改密码失败')
+    return
+  }
+  // 清除可能记住的默认密码，避免下次自动登录仍用旧密码
+  await window.api.auth.remember.save({ remember: false, username: session.user?.username ?? 'admin', password: '' })
+  forcePwd.old = ''
+  forcePwd.new = ''
+  forcePwd.confirm = ''
+  forcePwdOpen.value = false
+  ElMessage.success('密码已修改，请牢记新密码')
+}
+
 async function logout(): Promise<void> {
   try {
     await ElMessageBox.confirm('确定退出登录吗？', '提示', { type: 'warning' })
@@ -500,6 +565,13 @@ onMounted(async () => {
     platform.value = meta.platform
   }
   void loadNavCounts()
+
+  // 默认密码登录后主动提示修改
+  if (sessionStorage.getItem('pwd-default-hint') === '1') {
+    sessionStorage.removeItem('pwd-default-hint')
+    forcePwd.old = 'admin123'
+    forcePwdOpen.value = true
+  }
 })
 
 onBeforeUnmount(() => {
@@ -949,5 +1021,16 @@ onBeforeUnmount(() => {
 .dlg-foot-right {
   display: flex;
   gap: 0.5rem;
+}
+
+.pwd-alert {
+  margin: 0 0 0.75rem;
+  padding: 0.6rem 0.75rem;
+  font-size: 0.75rem;
+  line-height: 1.6;
+  color: #8a5a12;
+  background: #fdf6ea;
+  border: 1px solid #f0dcbd;
+  border-radius: 0.5rem;
 }
 </style>
