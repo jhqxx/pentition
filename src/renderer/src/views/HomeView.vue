@@ -1,29 +1,46 @@
 <template>
   <div class="page home">
     <div class="toolbar home-toolbar">
-      <span class="toolbar-meta">数据更新于 {{ updatedAt }}</span>
+      <div class="scope">
+        <el-radio-group v-model="scope" size="small">
+          <el-radio-button label="all">全部</el-radio-button>
+          <el-radio-button label="clue">线索</el-radio-button>
+          <el-radio-button label="xf">信访</el-radio-button>
+        </el-radio-group>
+        <span class="toolbar-meta">数据更新于 {{ updatedAt }}</span>
+      </div>
       <span class="filter-actions">
         <el-button :icon="Refresh" @click="load">刷新</el-button>
         <el-button :icon="Download" @click="exportReport">导出报表</el-button>
       </span>
     </div>
 
-    <section class="kpis">
-      <article v-for="(k, i) in kpis" :key="k.key" class="kpi" :class="{ alert: k.alert }" :style="{ '--d': `${i * 40}ms` }">
+    <section class="kpis" :class="scope === 'all' ? 'split' : 'four'">
+      <article
+        v-for="(k, i) in kpis"
+        :key="k.key"
+        class="kpi"
+        :class="{ alert: k.alert }"
+        :style="{ '--d': `${i * 35}ms` }"
+      >
         <span class="kpi-label">{{ k.label }}</span>
-        <strong class="kpi-value">{{ shown[k.key] ?? 0 }}<em v-if="k.suffix">{{ k.suffix }}</em></strong>
+        <strong class="kpi-value">
+          {{ shown[k.key] ?? 0 }}<em v-if="k.suffix">{{ k.suffix }}</em>
+          <i v-if="k.delta" class="delta" :class="{ dn: k.deltaDown }">{{ k.delta }}</i>
+        </strong>
         <span class="kpi-note">{{ k.note }}</span>
       </article>
     </section>
 
-    <section class="grid">
-      <article class="card span2" style="--d: 140ms">
+    <section class="grid top">
+      <article class="card" style="--d: 120ms">
         <header class="card-head">
           <h2>办理趋势</h2>
           <div class="legend">
             <span><i style="background: var(--harbor)" />接收</span>
             <span><i style="background: #2f8f83" />办结</span>
             <span><i style="background: #b45309" />超期</span>
+            <span class="legend-note">单位：件 / 月</span>
           </div>
         </header>
         <div class="chart-body">
@@ -33,37 +50,50 @@
         </div>
       </article>
 
-      <article class="card" style="--d: 175ms">
-        <header class="card-head"><h2>信访件与问题线索</h2></header>
-        <div class="body"><ChartSlot :empty="emptyOf(kindItems)"><DonutChart :items="kindItems" center-label="总量" /></ChartSlot></div>
+      <article class="card" style="--d: 160ms">
+        <header class="card-head">
+          <h2>信访件与问题线索</h2>
+          <span class="card-note">占比</span>
+        </header>
+        <div class="body">
+          <ChartSlot :empty="emptyOf(kindItems)"><DonutChart :items="kindItems" center-label="总量" /></ChartSlot>
+        </div>
       </article>
+    </section>
 
-      <article class="card gauge-card" style="--d: 315ms">
-        <header class="card-head"><h2>办结情况</h2></header>
-        <div class="body"><GaugeChart :value="overview.completionRate" label="整体办结率" /></div>
-        <p class="gauge-foot">
-          <span>线索超期 <b class="danger">{{ overview.overdue }}</b> 件</span>
-          <span>线索超期率 <b>{{ overview.overdueRate }}%</b></span>
-        </p>
-      </article>
-
-      <article class="card span2" style="--d: 350ms">
+    <section v-if="scope === 'xf'" class="grid two">
+      <article class="card" style="--d: 200ms">
         <header class="card-head">
           <h2>办理状态分布</h2>
           <span class="card-note">全部记录 · 已办结优先</span>
         </header>
         <div class="body"><ChartSlot :empty="emptyOf(statusItems)"><StackedBar :items="statusItems" /></ChartSlot></div>
       </article>
+      <article class="card alert-card" style="--d: 240ms">
+        <header class="card-head">
+          <h2>超期与待办</h2>
+          <span class="card-note">需关注</span>
+        </header>
+        <div class="body">
+          <div class="alertbox">
+            <b class="danger">{{ overview.overdue }}</b>
+            <span>件已超期</span>
+            <p>线索超期率 {{ overview.overdueRate }}% · 待转线索 {{ overview.unconverted }} 件</p>
+          </div>
+        </div>
+      </article>
+    </section>
 
-      <article class="card" style="--d: 210ms">
+    <section v-else class="grid four">
+      <article class="card" style="--d: 200ms">
         <header class="card-head">
           <h2>线索来源</h2>
           <span class="card-note">按问题线索</span>
         </header>
-        <div class="body"><ChartSlot :empty="emptyOf(sourceItems)"><DonutChart :items="sourceItems" center-label="线索" /></ChartSlot></div>
+        <div class="body"><ChartSlot :empty="emptyOf(sourceItems)"><BarList :items="sourceItems" /></ChartSlot></div>
       </article>
 
-      <article class="card" style="--d: 245ms">
+      <article class="card" style="--d: 235ms">
         <header class="card-head">
           <h2>处置形态</h2>
           <span class="card-note">按问题线索</span>
@@ -71,7 +101,7 @@
         <div class="body"><ChartSlot :empty="emptyOf(disposeItems)"><BarList :items="disposeItems" /></ChartSlot></div>
       </article>
 
-      <article class="card" style="--d: 280ms">
+      <article class="card" style="--d: 270ms">
         <header class="card-head">
           <h2>承办部室</h2>
           <span class="card-note">按问题线索</span>
@@ -79,65 +109,17 @@
         <div class="body"><ChartSlot :empty="emptyOf(deptItems)"><BarList :items="deptItems" /></ChartSlot></div>
       </article>
 
-      <article class="card" style="--d: 385ms">
+      <article class="card alert-card" style="--d: 305ms">
         <header class="card-head">
-          <h2>被反映对象构成</h2>
-          <span class="card-note">按人</span>
+          <h2>超期与待办</h2>
+          <span class="card-note">需关注</span>
         </header>
-        <div class="body"><ChartSlot :empty="emptyOf(targetItems)"><DonutChart :items="targetItems" center-label="人次" /></ChartSlot></div>
-      </article>
-
-      <article class="card" style="--d: 420ms">
-        <header class="card-head">
-          <h2>办理时长分布</h2>
-          <span class="card-note">已办结</span>
-        </header>
-        <div class="chart-body short">
-          <ChartSlot :empty="emptyOf(durationItems)"><ColumnChart :items="durationItems" /></ChartSlot>
-        </div>
-      </article>
-
-      <article class="card" style="--d: 455ms">
-        <header class="card-head">
-          <h2>主办人办案量</h2>
-          <span class="card-note">按件数</span>
-        </header>
-        <div class="body"><ChartSlot :empty="emptyOf(handlerItems)"><BarList :items="handlerItems" /></ChartSlot></div>
-      </article>
-
-      <article class="card" style="--d: 490ms">
-        <header class="card-head">
-          <h2>信访转线索漏斗</h2>
-          <span class="card-note">转化率</span>
-        </header>
-        <div class="body"><ChartSlot :empty="emptyOf(extra.funnel)"><FunnelChart :items="extra.funnel" /></ChartSlot></div>
-      </article>
-
-      <article class="card span2" style="--d: 525ms">
-        <header class="card-head">
-          <h2>线索来源 × 处置形态</h2>
-          <span class="card-note">交叉分布</span>
-        </header>
-        <div class="body"><ChartSlot :empty="extra.matrix.sources.length === 0 || extra.matrix.values.flat().every((v) => !v)"><MatrixHeat :sources="extra.matrix.sources" :forms="extra.matrix.forms" :values="extra.matrix.values" /></ChartSlot></div>
-      </article>
-
-      <article class="card span2" style="--d: 560ms">
-        <header class="card-head">
-          <h2>接收量日历热力</h2>
-          <span class="card-note">近 12 个月 · 每日件数</span>
-        </header>
-        <div class="body"><ChartSlot :empty="extra.heatmap.length === 0 || extra.heatmap.every((m) => m.days.every((d) => !d))"><CalendarHeat :months="extra.heatmap" /></ChartSlot></div>
-      </article>
-
-      <article class="card" style="--d: 595ms">
-        <header class="card-head">
-          <h2>月度办结率</h2>
-          <span class="card-note">%</span>
-        </header>
-        <div class="chart-body short">
-          <ChartSlot :empty="extra.monthlyRate.every((m) => !m.count)">
-            <TrendChart :labels="rateLabels" :series="rateSeries" />
-          </ChartSlot>
+        <div class="body">
+          <div class="alertbox">
+            <b class="danger">{{ overview.overdue }}</b>
+            <span>件已超期</span>
+            <p>线索超期率 {{ overview.overdueRate }}% · 待转线索 {{ overview.unconverted }} 件</p>
+          </div>
         </div>
       </article>
     </section>
@@ -152,12 +134,7 @@ import ChartSlot from '../components/charts/ChartSlot.vue'
 import TrendChart from '../components/charts/TrendChart.vue'
 import DonutChart from '../components/charts/DonutChart.vue'
 import BarList from '../components/charts/BarList.vue'
-import GaugeChart from '../components/charts/GaugeChart.vue'
-import ColumnChart from '../components/charts/ColumnChart.vue'
 import StackedBar from '../components/charts/StackedBar.vue'
-import FunnelChart from '../components/charts/FunnelChart.vue'
-import MatrixHeat from '../components/charts/MatrixHeat.vue'
-import CalendarHeat from '../components/charts/CalendarHeat.vue'
 
 type Overview = {
   xfTotal: number
@@ -180,6 +157,7 @@ type MonthRow = {
   completionRate: number
 }
 
+const scope = ref<'all' | 'clue' | 'xf'>('all')
 const overview = ref<Overview>({
   xfTotal: 0,
   xsTotal: 0,
@@ -197,46 +175,48 @@ const clueSources = ref<GroupRow[]>([])
 const disposeForms = ref<GroupRow[]>([])
 const depts = ref<GroupRow[]>([])
 
-type Extra = {
-  statusMix: Array<{ name: string; value: number }>
-  durationBuckets: Array<{ name: string; value: number }>
-  handlers: Array<{ name: string; value: number }>
-  heatmap: Array<{ month: string; days: number[] }>
-  targetMix: Array<{ name: string; value: number }>
-  funnel: Array<{ name: string; value: number }>
-  matrix: { sources: string[]; forms: string[]; values: number[][] }
-  monthlyRate: Array<{ month: string; rate: number; count: number }>
-}
+type Extra = { statusMix: Array<{ name: string; value: number }> }
+const extra = ref<Extra>({ statusMix: [] })
 const updatedAt = ref('—')
-const extra = ref<Extra>({
-  statusMix: [],
-  durationBuckets: [],
-  handlers: [],
-  heatmap: [],
-  targetMix: [],
-  funnel: [],
-  matrix: { sources: [], forms: [], values: [] },
-  monthlyRate: []
-})
 
 const shown = reactive<Record<string, number>>({})
 let raf = 0
 
-/** 面板空态判定：没有条目或全为 0 都算「没数据」，避免画出空框 */
 function emptyOf(items?: Array<{ value?: number }> | null): boolean {
   if (!items || items.length === 0) return true
   return items.every((item) => !item.value)
 }
 
-const kpis = computed(() => [
-  { key: 'xsTotal', label: '问题线索', value: overview.value.xsTotal, note: '线索总数' },
-  { key: 'xfTotal', label: '信访件', value: overview.value.xfTotal, note: '信访总数' },
-  { key: 'processing', label: '未办结', value: overview.value.processing, note: '线索进行中' },
-  { key: 'completed', label: '已办结', value: overview.value.completed, note: '已完成办理' },
-  { key: 'overdue', label: '已超期', value: overview.value.overdue, note: `超期率 ${overview.value.overdueRate}%`, alert: true },
-  { key: 'completionRate', label: '办结率', value: overview.value.completionRate, note: '整体完成率', suffix: '%' },
-  { key: 'unconverted', label: '待转线索', value: overview.value.unconverted, note: '信访件未转化' }
-])
+/** 环比：最后一个月相对上一月的变化（无两月数据则不给） */
+function mom(metric: (m: MonthRow) => number): { text: string; down: boolean } | null {
+  const list = monthly.value
+  if (list.length < 2) return null
+  const last = metric(list[list.length - 1])
+  const prev = metric(list[list.length - 2])
+  const diff = last - prev
+  if (!diff) return null
+  return { text: `${diff > 0 ? '+' : ''}${diff}`, down: diff < 0 }
+}
+
+const allKpis = computed(() => {
+  const dClue = mom((m) => m.count)
+  const dDone = mom((m) => m.completedCount)
+  return [
+    { key: 'xsTotal', label: '问题线索', value: overview.value.xsTotal, note: '线索总数', delta: dClue?.text, deltaDown: dClue?.down },
+    { key: 'processing', label: '未办结', value: overview.value.processing, note: '线索进行中' },
+    { key: 'completed', label: '已办结', value: overview.value.completed, note: '已完成办理', delta: dDone?.text, deltaDown: dDone?.down },
+    { key: 'overdue', label: '已超期', value: overview.value.overdue, note: `超期率 ${overview.value.overdueRate}%`, alert: true },
+    { key: 'xfTotal', label: '受理信访', value: overview.value.xfTotal, note: '信访总数' },
+    { key: 'completionRate', label: '办结率', value: overview.value.completionRate, note: '整体完成率', suffix: '%' },
+    { key: 'unconverted', label: '待转线索', value: overview.value.unconverted, note: '信访件未转化' },
+    { key: 'overdueRate', label: '超期率', value: overview.value.overdueRate, note: '线索超期', suffix: '%' }
+  ]
+})
+const kpis = computed(() => {
+  if (scope.value === 'clue') return allKpis.value.slice(0, 4)
+  if (scope.value === 'xf') return allKpis.value.slice(4)
+  return allKpis.value
+})
 
 const trendLabels = computed(() => monthly.value.map((m) => m.monthName.replace('年', '/').replace('月', '')))
 const trendSeries = computed(() => [
@@ -246,7 +226,6 @@ const trendSeries = computed(() => [
 ])
 
 const PALETTE = ['#1f6fb2', '#2f8f83', '#b45309', '#7a5aa8', '#c2410c', '#0e7490', '#4d7c0f', '#9d174d']
-
 const kindItems = computed(() => [
   { name: '问题线索', value: overview.value.xsTotal, color: '#1f6fb2' },
   { name: '信访件', value: overview.value.xfTotal, color: '#7a5aa8' }
@@ -270,20 +249,6 @@ const STATUS_COLORS: Record<string, string> = {
 const statusItems = computed(() =>
   extra.value.statusMix.map((s) => ({ ...s, color: STATUS_COLORS[s.name] ?? '#94a3b8' }))
 )
-const durationItems = computed(() =>
-  extra.value.durationBuckets.map((b, i) => ({ ...b, color: PALETTE[i % PALETTE.length] }))
-)
-const handlerItems = computed(() =>
-  extra.value.handlers.map((h, i) => ({ ...h, color: PALETTE[(i + 2) % PALETTE.length] }))
-)
-const targetItems = computed(() =>
-  extra.value.targetMix.map((t, i) => ({ name: t.name, value: t.value, color: PALETTE[i === 0 ? 0 : 3] }))
-)
-const rateLabels = computed(() => extra.value.monthlyRate.map((m) => m.month.replace('年', '/').replace('月', '')))
-const rateSeries = computed(() => [
-  { name: '办结率', color: '#2f8f83', values: extra.value.monthlyRate.map((m) => m.rate) }
-])
-
 const sourceItems = computed(() => topN(clueSources.value, 5))
 const disposeItems = computed(() => topN(disposeForms.value, 4))
 const deptItems = computed(() => topN(depts.value, 4))
@@ -294,7 +259,6 @@ function animateNumbers(): void {
   targets.forEach((t) => {
     if (shown[t.key] === undefined) shown[t.key] = 0
   })
-  // 窗口被遮挡 / 最小化时 rAF 会被浏览器节流到不触发，数字会一直停在 0；此时直接落最终值
   if (document.hidden) {
     for (const item of targets) shown[item.key] = item.value
     return
@@ -305,8 +269,7 @@ function animateNumbers(): void {
     const p = Math.min(1, (t - start) / dur)
     const eased = 1 - Math.pow(1 - p, 3)
     for (const item of targets) {
-      const from = shown[item.key] ?? 0
-      shown[item.key] = item.key === 'completionRate'
+      shown[item.key] = item.key === 'completionRate' || item.key === 'overdueRate'
         ? Math.round(item.value * eased * 10) / 10
         : Math.round(item.value * eased)
     }
@@ -358,11 +321,21 @@ onBeforeUnmount(() => {
 <style scoped>
 .home {
   display: grid;
-  gap: 1.125rem;
+  gap: 1rem;
 }
+.scope {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+}
+.toolbar-meta {
+  font-size: 0.75rem;
+  color: var(--ink-3);
+}
+
+/* KPI */
 .kpis {
   display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 1px;
   background: var(--rule);
   border: 1px solid var(--rule);
@@ -370,58 +343,95 @@ onBeforeUnmount(() => {
   overflow: hidden;
   animation: rise 0.5s cubic-bezier(0.22, 0.61, 0.36, 1) both;
 }
+.kpis.split {
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+}
+.kpis.four {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
 .kpi {
   display: grid;
   gap: 0.25rem;
-  padding: 0.875rem 0.9375rem 0.9375rem;
+  padding: 0.8125rem 0.875rem 0.875rem;
   background: var(--surface);
+  min-width: 0;
   animation: rise 0.42s cubic-bezier(0.22, 0.61, 0.36, 1) var(--d, 0ms) both;
 }
+/* 第 5 项前加一道更明显的分隔，区分「线索层」与「信访层」 */
+.kpis.split .kpi:nth-child(5) {
+  box-shadow: inset 2px 0 0 var(--rule-2);
+}
 .kpi-label {
-  font-size: 0.75rem;
+  font-size: 0.6875rem;
   color: var(--ink-3);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .kpi-value {
-  font-size: 1.75rem;
+  font-size: 1.5rem;
   font-weight: 700;
   line-height: 1.1;
   color: var(--ink);
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em;
+  white-space: nowrap;
 }
 .kpi-value em {
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   font-style: normal;
   font-weight: 600;
   margin-left: 0.0625rem;
 }
-.kpi-note {
+.kpi-value .delta {
+  font-style: normal;
   font-size: 0.6875rem;
+  font-weight: 600;
+  margin-left: 0.3rem;
+  color: #1f8a5f;
+}
+.kpi-value .delta.dn {
+  color: #b4433a;
+}
+.kpi-note {
+  font-size: 0.625rem;
   color: var(--ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .kpi.alert .kpi-value {
   color: #b45309;
 }
 
+/* grids */
 .grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 1.125rem;
+  gap: 1rem;
+}
+.grid.top {
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  min-height: 17rem;
+}
+.grid.four {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  min-height: 13rem;
+}
+.grid.two {
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  min-height: 12rem;
 }
 .card {
   display: flex;
   flex-direction: column;
-  gap: 0.875rem;
-  padding: 1rem 1.125rem 1.125rem;
+  gap: 0.75rem;
+  padding: 0.9375rem 1rem 1rem;
   background: var(--surface);
   border: 1px solid var(--rule);
   border-radius: var(--r-lg);
   min-width: 0;
-  height: 100%;
   animation: rise 0.42s cubic-bezier(0.22, 0.61, 0.36, 1) var(--d, 0ms) both;
-}
-.span2 {
-  grid-column: span 2;
 }
 .card-head {
   display: flex;
@@ -433,18 +443,19 @@ onBeforeUnmount(() => {
 }
 .card-head h2 {
   margin: 0;
-  font-size: 0.9375rem;
+  font-size: 0.875rem;
   font-weight: 600;
   color: var(--ink);
 }
 .card-note {
-  font-size: 0.6875rem;
+  font-size: 0.625rem;
   color: var(--ink-3);
 }
 .legend {
   display: flex;
-  gap: 0.75rem;
-  font-size: 0.6875rem;
+  align-items: center;
+  gap: 0.625rem;
+  font-size: 0.625rem;
   color: var(--ink-3);
 }
 .legend span {
@@ -457,38 +468,53 @@ onBeforeUnmount(() => {
   height: 0.5rem;
   border-radius: 2px;
 }
+.legend-note {
+  color: var(--ink-3);
+  opacity: 0.85;
+}
 .body {
   flex: 1;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  min-height: 10.5rem;
+  min-height: 8rem;
 }
 .chart-body {
   flex: 1;
-  min-height: 15rem;
+  min-height: 13rem;
 }
-.chart-body.short {
-  min-height: 11rem;
+
+/* 超期与待办 */
+.alert-card .body {
+  justify-content: center;
 }
-.gauge-card .body {
-  min-height: 9.5rem;
-}
-.gauge-foot {
+.alertbox {
   display: flex;
-  justify-content: space-between;
-  margin: 0;
-  padding-top: 0.5rem;
-  border-top: 1px dashed var(--rule);
-  font-size: 0.75rem;
-  color: var(--ink-3);
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid #f0d8bf;
+  border-radius: var(--r-md);
+  background: #fdf6ee;
 }
-.gauge-foot b {
-  color: var(--ink);
+.alertbox b {
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1;
   font-variant-numeric: tabular-nums;
 }
-.gauge-foot .danger {
-  color: var(--signal, #b45309);
+.alertbox .danger {
+  color: #b45309;
+}
+.alertbox span {
+  font-size: 0.6875rem;
+  color: var(--ink-3);
+}
+.alertbox p {
+  margin: 0.35rem 0 0;
+  font-size: 0.6875rem;
+  color: var(--ink-3);
+  line-height: 1.5;
 }
 
 @keyframes rise {
@@ -503,32 +529,24 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 80rem) {
-  /* 7 个 KPI 在 3 列下会剩 1 个孤格：让最后一项占满整行，不留空洞 */
-  .kpis {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+  .kpis.split {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
-  .kpi:last-child:nth-child(3n + 1) {
-    grid-column: 1 / -1;
-  }
-  .grid {
+  .grid.four {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .span2 {
-    grid-column: span 2;
   }
 }
 @media (max-width: 64rem) {
-  .kpis {
+  .kpis.split,
+  .kpis.four {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .kpi:last-child:nth-child(odd) {
-    grid-column: 1 / -1;
-  }
-  .grid {
+  .grid.top,
+  .grid.two {
     grid-template-columns: minmax(0, 1fr);
   }
-  .span2 {
-    grid-column: span 1;
+  .grid.four {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 @media (prefers-reduced-motion: reduce) {
