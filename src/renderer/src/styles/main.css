@@ -1034,3 +1034,49 @@ body {
 .el-table .el-table__body tr.row-flash > td {
   animation: rowFlash 1.4s ease-out;
 }
+
+/* ---------- 打印 / 导出整页报表 ---------- */
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 8mm;
+  }
+  html,
+  body,
+  #app {
+    height: auto !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+  .sb-slot,
+  .sidebar,
+  .topbar,
+  .topbar-controls,
+  .resizer {
+    display: none !important;
+  }
+  .shell,
+  .body,
+  .main {
+    height: auto !important;
+    overflow: visible !important;
+  }
+  .main {
+    padding: 0 !important;
+  }
+  .home-toolbar .filter-actions {
+    display: none !important;
+  }
+  .el-message,
+  .el-notification,
+  .el-message-box__wrapper {
+    display: none !important;
+  }
+  .home {
+    gap: 8px !important;
+  }
+  .kpis,
+  .card {
+    break-inside: avoid;
+  }
+}

@@ -987,6 +987,48 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     })
   })
 
+  // 导出「整个首页」为 PDF：用当前窗口整页打印，包含 KPI、趋势、占比与全部卡片
+  ipcMain.handle('export:home', async () => {
+    const user = requireUser()
+    const win = getWindow()
+    if (!win) return fail('当前窗口不可用，无法导出')
+    try {
+      // 等首帧与字体就绪：刚进入首页立刻导出时若布局未完成，会抓到空白页
+      await win.webContents.executeJavaScript(
+        `new Promise((resolve) => {
+          const done = () => requestAnimationFrame(() => requestAnimationFrame(() => resolve(true)))
+          if (document.fonts && document.fonts.ready) document.fonts.ready.then(done)
+          else done()
+        })`,
+      )
+      await new Promise((r) => setTimeout(r, 150))
+      const pdf = await win.webContents.printToPDF({
+        printBackground: true,
+        landscape: true,
+        pageSize: 'A3',
+        margins: { top: 0.25, bottom: 0.25, left: 0.25, right: 0.25 },
+      })
+      const dir = app.getPath('downloads')
+      const base = `信访统计报表-${stamp()}`
+      let filePath = path.join(dir, `${base}.pdf`)
+      for (let i = 2; fs.existsSync(filePath); i += 1) filePath = path.join(dir, `${base} (${i}).pdf`)
+      fs.writeFileSync(filePath, pdf)
+      addLog({
+        userName: user.username,
+        userRealName: user.realName,
+        userRole: user.role,
+        operationType: '导出',
+        operationModule: '首页统计',
+        operationContent: '导出整页统计报表（PDF）',
+        targetName: path.basename(filePath),
+        ipAddress: localIp(),
+      })
+      return ok(filePath)
+    } catch (error) {
+      return fail(error instanceof Error ? error.message : String(error))
+    }
+  })
+
   ipcMain.handle('settings:get', () => {
     requireUser()
     const current = readSettings()

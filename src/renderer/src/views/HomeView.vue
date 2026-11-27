@@ -299,8 +299,9 @@ async function load(): Promise<void> {
 }
 
 async function exportReport(): Promise<void> {
-  const res = await window.api.exports.stats()
-  if (res?.ok) ElMessage.success(`已导出：${res.data}`)
+  // 导出整页报表（PDF）：当前首页所有 KPI、图表与卡片都会一起输出
+  const res = await window.api.exports.home()
+  if (res?.ok) ElMessage.success(`已导出整页报表：${res.data}`)
   else ElMessage.error(`导出失败：${res?.error ?? '未知错误'}`)
 }
 

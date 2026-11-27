@@ -127,6 +127,7 @@ interface Window {
       ) => Promise<AnyResult>
       logs: (filter: unknown) => Promise<AnyResult>
       stats: () => Promise<AnyResult>
+      home: () => Promise<AnyResult<string>>
     }
     settings: {
       get: () => Promise<AnyResult>

@@ -95,6 +95,7 @@ const api = {
     ) => invoke('export:complaints', payload),
     logs: (filter: unknown) => invoke('export:logs', filter),
     stats: () => invoke('export:stats'),
+    home: () => invoke('export:home'),
   },
   settings: {
     get: () => invoke('settings:get'),
