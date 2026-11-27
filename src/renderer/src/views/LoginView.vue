@@ -342,11 +342,11 @@ async function submit(): Promise<void> {
 .metas .sep { width: 1px; background: rgba(255, 255, 255, 0.22); }
 
 /* intro */
-.intro { position: absolute; left: 52px; top: 372px; width: 404px; }
+.intro { position: absolute; left: 52px; top: 356px; width: 404px; }
 .intro h2 { margin: 0; font-size: 19px; font-weight: 600; letter-spacing: 0.02em; color: var(--ink); line-height: 1.3; }
-.intro .lead { margin: 10px 0 0; font-size: 12.5px; line-height: 1.95; color: var(--ink3); letter-spacing: 0.01em; }
-.caps { margin: 22px 0 0; padding: 0; border-top: 1px solid var(--rule2); }
-.caps li { list-style: none; display: flex; align-items: flex-start; gap: 16px; padding: 13px 2px; border-bottom: 1px solid var(--rule); }
+.intro .lead { margin: 8px 0 0; font-size: 12.5px; line-height: 1.95; color: var(--ink3); letter-spacing: 0.01em; }
+.caps { margin: 16px 0 0; padding: 0; border-top: 1px solid var(--rule2); }
+.caps li { list-style: none; display: flex; align-items: flex-start; gap: 16px; padding: 10px 2px; border-bottom: 1px solid var(--rule); }
 .caps .no { font-family: 'SF Mono', Menlo, monospace; font-size: 10.5px; letter-spacing: 0.08em; color: var(--blue2); padding-top: 2px; width: 20px; flex: none; }
 .caps .txt b { display: block; font-size: 13px; font-weight: 600; color: var(--ink2); letter-spacing: 0.02em; }
 .caps .txt span { display: block; margin-top: 3px; font-size: 11px; color: var(--ink3); }
