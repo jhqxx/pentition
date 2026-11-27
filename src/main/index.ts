@@ -109,6 +109,11 @@ function createWindow(): void {
   })
 
   mainWindow.on('ready-to-show', () => mainWindow?.show())
+  // 兜底：后台启动 / 渲染被节流时 ready-to-show 可能不触发，避免窗口一直隐藏
+  const revealTimer = setTimeout(() => {
+    if (mainWindow && !mainWindow.isVisible()) mainWindow.show()
+  }, 1500)
+  mainWindow.on('closed', () => clearTimeout(revealTimer))
 
   // 点叉号不直接退出：问一句「退出登录，还是最小化」
   mainWindow.on('close', (event) => {
