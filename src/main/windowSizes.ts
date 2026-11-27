@@ -1,8 +1,8 @@
 import { screen, type BrowserWindow } from 'electron'
 
-/** 登录态窗口：只比登录卡片大一圈，避免四周大片空白 */
-export const LOGIN_SIZE = { width: 364, height: 492 }
-export const LOGIN_MIN = { width: 340, height: 470 }
+/** 登录态窗口：横版通栏布局（L8 横幅方案） */
+export const LOGIN_SIZE = { width: 1160, height: 740 }
+export const LOGIN_MIN = { width: 1000, height: 640 }
 /** 登录后的工作尺寸 */
 export const WORK_SIZE = { width: 1320, height: 860 }
 export const WORK_MIN = { width: 900, height: 600 }

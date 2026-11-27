@@ -1,18 +1,42 @@
 <template>
   <div class="login">
-    <section class="card">
-      <header class="card-head">
-        <h1 class="card-title">信访管理系统</h1>
-      </header>
+    <header class="tb">
+      <div class="tb-l">
+        <img class="tb-logo" :src="logoApp" alt="" />
+        <span>审查调查工作平台</span>
+      </div>
+      <WindowControls class="tb-r" style="--wc-hover: rgba(255, 255, 255, 0.18)" />
+    </header>
 
-      <div class="card-body">
-        <div class="welcome">
-          <el-icon class="welcome-icon"><Lock /></el-icon>
-          <p class="welcome-text">欢迎登录</p>
+    <section class="banner">
+      <div class="bl">
+        <span class="banner-logo"><img :src="logoApp" alt="审查调查工作平台" /></span>
+        <div>
+          <h1>审查调查工作平台</h1>
+          <p>信访 · 线索 · 案件 一体化办理</p>
         </div>
+      </div>
+      <div class="bmeta">内网专线 · 支持离线<br />数据仅保存在本机</div>
+    </section>
+
+    <div class="stage">
+      <section class="leftnote">
+        <h3>让每一件信访都留下清晰的轨迹</h3>
+        <p>
+          从受理登记到线索处置、再到案件归档，所有动作在同一个工作台完成，全程留痕、可追溯、可按月导出。
+        </p>
+        <div class="chips">
+          <span>信访登记</span><span>线索流转</span><span>案件归档</span><span>台账导出</span>
+        </div>
+      </section>
+
+      <section class="sheet">
+        <h2>登录</h2>
+        <p class="sub">使用分配的账号进入工作台</p>
 
         <el-form
           ref="formRef"
+          class="form"
           :model="form"
           :rules="rules"
           label-position="top"
@@ -22,7 +46,6 @@
           <el-form-item label="用户名" prop="username">
             <el-autocomplete
               v-model="form.username"
-              size="large"
               :fetch-suggestions="suggestAccounts"
               :trigger-on-focus="true"
               value-key="username"
@@ -40,7 +63,6 @@
           <el-form-item label="密码" prop="password">
             <el-input
               v-model="form.password"
-              size="large"
               type="password"
               placeholder="请输入密码"
               aria-label="密码"
@@ -54,14 +76,11 @@
           <el-button class="submit" :loading="loading" native-type="submit">登 录</el-button>
         </el-form>
 
-        <div class="demo">
-          <p class="demo-title">默认账号：</p>
-          <p class="demo-line">用户名：admin&nbsp;&nbsp;&nbsp;密码：admin123</p>
-        </div>
-
+        <div class="demo"><b>默认账号</b>&nbsp;&nbsp;admin / admin123</div>
+        <p class="note">数据仅保存在本机 · 断网可用</p>
         <p v-if="version" class="ver mono">v{{ version }}</p>
-      </div>
-    </section>
+      </section>
+    </div>
   </div>
 </template>
 
@@ -69,8 +88,9 @@
 import { onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
-import { Lock } from '@element-plus/icons-vue'
 import { setUser } from '@/stores/session'
+import logoApp from '@/assets/logo-app.png'
+import WindowControls from '@/components/WindowControls.vue'
 
 interface RememberedAccount {
   username: string
@@ -180,155 +200,264 @@ async function submit(): Promise<void> {
 </script>
 
 <style scoped>
+/* ---------- L8 横幅 ---------- */
 .login {
   height: 100%;
-  background: var(--page);
-}
-
-/* 登录窗口就是卡片本身：铺满窗口，不留任何上下左右空白 */
-.card {
-  width: 100%;
-  min-height: 100%;
   display: flex;
   flex-direction: column;
-  background: var(--surface);
-  border: 0;
-  border-radius: 0;
-  box-shadow: none;
+  overflow: hidden;
+  background: #eef5fa;
+  color: #12222e;
+}
+
+/* 自绘标题栏（应用内窗口按钮） */
+.tb {
+  height: 44px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px 0 16px;
+  background: #1f6fb2;
+  color: #eef7fd;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+  -webkit-app-region: drag;
+  user-select: none;
+}
+.tb-l {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+.tb-logo {
+  width: 20px;
+  height: 20px;
+  display: block;
+  border-radius: 4px;
+}
+.tb-r {
+  margin-left: auto;
+}
+
+/* 通栏海蓝横幅 */
+.banner {
+  height: 250px;
+  flex: none;
+  background: #1f6fb2;
+  color: #fff;
+  padding: 0 74px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  position: relative;
   overflow: hidden;
 }
-
-.card-head {
-  background: var(--login-navy);
-  padding: 0.875rem 1rem;
+.banner::after {
+  content: '';
+  position: absolute;
+  right: -80px;
+  top: -120px;
+  width: 420px;
+  height: 420px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 50%;
+  box-shadow: 0 0 0 60px rgba(255, 255, 255, 0.05);
 }
-
-.card-title {
+.bl {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  position: relative;
+  z-index: 1;
+}
+.banner-logo img {
+  width: 62px;
+  height: 62px;
+  display: block;
+  border-radius: 14px;
+}
+.bl h1 {
   margin: 0;
-  text-align: center;
-  font-size: 0.9375rem;
+  font-size: 40px;
   font-weight: 600;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.04em;
   color: #fff;
 }
-
-.card-body {
-  padding: 1.5rem 1.375rem 1.25rem;
+.bl p {
+  margin: 10px 0 0;
+  font-size: 14px;
+  letter-spacing: 0.22em;
+  color: #cfe5f5;
+}
+.bmeta {
+  position: absolute;
+  right: 74px;
+  top: 34px;
+  z-index: 2;
+  text-align: right;
+  font-size: 11.5px;
+  line-height: 1.8;
+  color: #e8f4fc;
+  letter-spacing: 0.06em;
 }
 
-.welcome {
+/* 表单浮卡 */
+.stage {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-start;
+  padding: 0 92px;
+}
+.leftnote {
+  position: absolute;
+  left: 92px;
+  top: 56px;
+  max-width: 420px;
+}
+.leftnote h3 {
+  margin: 0 0 10px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #2b3d4a;
+}
+.leftnote p {
+  margin: 0 0 10px;
+  font-size: 12.5px;
+  line-height: 1.95;
+  color: #5f7383;
+}
+.leftnote .chips {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+.leftnote .chips span {
+  font-size: 11px;
+  color: #1f6fb2;
+  background: #e6f1fa;
+  border-radius: 999px;
+  padding: 4px 11px;
+}
+
+.sheet {
+  width: 452px;
+  background: #fff;
+  border: 1px solid #dbe7f1;
+  border-radius: 12px;
+  box-shadow: 0 24px 54px rgba(23, 80, 130, 0.16);
+  margin-top: -56px;
+  padding: 38px 40px 24px;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  margin-bottom: 1.25rem;
+  position: relative;
+  z-index: 3;
 }
-
-.welcome-icon {
-  font-size: 1.75rem;
-  color: var(--login-navy);
-}
-
-.welcome-text {
-  margin: 0.5rem 0 0;
-  font-size: 0.9375rem;
+.sheet h2 {
+  margin: 0 0 2px;
+  font-size: 22px;
   font-weight: 600;
-  color: var(--ink);
+  color: #12222e;
+}
+.sheet .sub {
+  margin: 0;
+  font-size: 12px;
+  color: #7a8d9c;
 }
 
-.card :deep(.el-form-item) {
-  margin-bottom: 1.125rem;
+.form {
+  margin-top: 16px;
 }
-
-/* 输入框本身再高一点，账号/密码有足够的点击与输入空间 */
-.card :deep(.el-form-item .el-input__wrapper),
-.card :deep(.el-form-item .el-autocomplete .el-input__wrapper) {
-  min-height: 2.625rem;
-  padding: 0 0.875rem;
+.sheet :deep(.el-form-item) {
+  margin-bottom: 0;
+  margin-top: 14px;
 }
-
-.card :deep(.el-form-item__label) {
-  font-size: 0.8125rem;
-  line-height: 1.4;
-  color: var(--ink-2);
-  padding: 0 0 0.3125rem;
+.sheet :deep(.el-form-item__label) {
+  padding: 0 0 7px;
+  font-size: 12.5px;
+  line-height: 1.2;
+  color: #3a4d5c;
+  letter-spacing: 0.02em;
 }
-
-.card :deep(.el-autocomplete) {
+.sheet :deep(.el-input__wrapper),
+.sheet :deep(.el-autocomplete .el-input__wrapper) {
+  height: 46px;
+  padding: 0 14px;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 0 0 1px #c6d9e7 inset;
+}
+.sheet :deep(.el-input__wrapper.is-focus),
+.sheet :deep(.el-autocomplete .el-input__wrapper.is-focus) {
+  box-shadow: 0 0 0 1px #1f6fb2 inset, 0 0 0 3px #e2eef8;
+}
+.sheet :deep(.el-input__inner) {
+  height: 46px;
+  font-size: 15px;
+  color: #12222e;
+}
+.sheet :deep(.el-autocomplete) {
   width: 100%;
 }
-
 .remember {
-  margin-bottom: 0.875rem;
-  font-size: 0.8125rem;
-  /* 勾选态跟着深蓝主色走，避免 Element Plus 默认亮蓝 */
-  --el-checkbox-checked-bg-color: var(--login-navy);
-  --el-checkbox-checked-input-border-color: var(--login-navy);
-  --el-checkbox-checked-text-color: var(--ink-2);
-  --el-checkbox-input-border-color-hover: var(--login-navy);
+  margin-top: 15px;
+  font-size: 12.5px;
+  --el-checkbox-checked-bg-color: #1f6fb2;
+  --el-checkbox-checked-input-border-color: #1f6fb2;
+  --el-checkbox-checked-text-color: #3a4d5c;
+  --el-checkbox-input-border-color-hover: #1f6fb2;
 }
-
-.submit:hover,
-.submit:focus-visible {
-  background: var(--login-navy-strong) !important;
-  border-color: var(--login-navy-strong) !important;
-  color: #fff !important;
-}
-
 .submit {
   width: 100%;
-  /* 与上方两个输入框同高（38px）：登录窗口固定 364×492，这里用 px 才对得上 EP 的大号控件 */
-  height: 38px;
-  /* 直接改写 Element Plus 的按钮变量：EP 的 .el-button 规则优先于 background 简写 */
-  --el-button-bg-color: var(--login-navy);
-  --el-button-border-color: var(--login-navy);
+  height: 48px;
+  margin-top: 22px;
+  border-radius: 8px;
+  --el-button-bg-color: #1f6fb2;
+  --el-button-border-color: #1f6fb2;
   --el-button-text-color: #fff;
-  --el-button-hover-bg-color: var(--login-navy-strong);
-  --el-button-hover-border-color: var(--login-navy-strong);
+  --el-button-hover-bg-color: #175a93;
+  --el-button-hover-border-color: #175a93;
   --el-button-hover-text-color: #fff;
-  --el-button-active-bg-color: var(--login-navy-strong);
-  --el-button-active-border-color: var(--login-navy-strong);
-  --el-button-active-text-color: #fff;
-  /* EP 自带 `.el-button:not(...):not(...):not(...)` 选择器权重更高，这里必须 !important */
-  background: var(--login-navy) !important;
-  border-color: var(--login-navy) !important;
+  --el-button-active-bg-color: #10456f;
+  --el-button-active-border-color: #10456f;
+  background: #1f6fb2 !important;
+  border-color: #1f6fb2 !important;
   color: #fff !important;
+  font-size: 15px;
   font-weight: 600;
-  letter-spacing: 0.18em;
-  font-size: 0.9375rem;
+  letter-spacing: 0.26em;
 }
-
 .demo {
-  margin-top: 1.125rem;
-  padding: 0.625rem 0.75rem;
-  background: var(--page);
-  border: 1px solid var(--rule);
-  border-radius: 0.25rem;
+  margin-top: 18px;
+  padding: 10px 14px;
+  border: 1px solid #d9e6f0;
+  border-radius: 8px;
+  background: #f3f8fc;
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: #6d8090;
 }
-
-.demo-title {
-  margin: 0;
-  font-size: 0.75rem;
+.demo b {
+  color: #3a4d5c;
   font-weight: 600;
-  color: var(--ink-2);
 }
-
-.demo-line {
-  margin: 0.1875rem 0 0;
-  font-size: 0.75rem;
-  color: var(--ink-3);
+.note {
+  margin: 12px 0 0;
+  font-size: 11px;
+  color: #6d8090;
+  letter-spacing: 0.02em;
 }
-
 .ver {
-  margin: 0.625rem 0 0;
+  margin: 14px 0 0;
   text-align: right;
-  font-size: 0.6875rem;
-  color: var(--ink-3);
-  letter-spacing: 0.08em;
-}
-
-@media (max-width: 32rem) {
-  .card-body {
-    padding: 1.25rem 1rem 1rem;
-  }
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: #7a8d9c;
 }
 </style>

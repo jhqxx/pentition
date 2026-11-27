@@ -119,6 +119,23 @@ export function logoutCurrentUser(): void {
 }
 
 export function registerIpc(getWindow: () => BrowserWindow | null): void {
+  // 自绘标题栏窗口控制（frame:false）
+  ipcMain.handle('win:minimize', () => {
+    getWindow()?.minimize()
+    return ok(true)
+  })
+  ipcMain.handle('win:toggle-maximize', () => {
+    const win = getWindow()
+    if (!win) return ok(false)
+    if (win.isMaximized()) win.unmaximize()
+    else win.maximize()
+    return ok(win.isMaximized())
+  })
+  ipcMain.handle('win:close', () => {
+    getWindow()?.close()
+    return ok(true)
+  })
+
   ipcMain.handle('auth:login', (_e, payload: { username: string; password: string }) => {
     const username = payload.username?.trim() ?? ''
     const password = payload.password ?? ''

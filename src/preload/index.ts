@@ -3,6 +3,11 @@ import { contextBridge, ipcRenderer } from 'electron'
 const invoke = (channel: string, payload?: unknown) => ipcRenderer.invoke(channel, payload)
 
 const api = {
+  win: {
+    minimize: () => invoke('win:minimize'),
+    toggleMaximize: () => invoke('win:toggle-maximize'),
+    close: () => invoke('win:close'),
+  },
   auth: {
     login: (payload: { username: string; password: string }) => invoke('auth:login', payload),
     current: () => invoke('auth:current'),

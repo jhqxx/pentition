@@ -10,6 +10,11 @@ type AnyResult<T = any> = { ok: boolean; data?: T; error?: string; [key: string]
 
 interface Window {
   api: {
+    win: {
+      minimize: () => Promise<AnyResult>
+      toggleMaximize: () => Promise<AnyResult>
+      close: () => Promise<AnyResult>
+    }
     auth: {
       login: (payload: { username: string; password: string }) => Promise<AnyResult>
       current: () => Promise<AnyResult>

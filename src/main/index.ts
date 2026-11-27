@@ -97,7 +97,9 @@ function createWindow(): void {
     title: '审查调查工作平台',
     icon: devIcon,
     autoHideMenuBar: true,
-    backgroundColor: '#f4f6fa',
+    // 自绘标题栏：窗口按钮收进应用内部（L8 设计）
+    frame: false,
+    backgroundColor: '#eef5fa',
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
       contextIsolation: true,

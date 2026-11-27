@@ -76,10 +76,11 @@
     <el-container class="body">
       <el-header class="topbar">
         <div class="crumb">
-          <span class="crumb-app">连云港港口控股集团</span>
+          <span class="crumb-app">审查调查工作平台</span>
           <span class="crumb-sep">/</span>
           <span class="crumb-current">{{ currentTitle }}</span>
         </div>
+        <WindowControls class="topbar-controls" />
       </el-header>
 
       <el-main class="main">
@@ -159,6 +160,7 @@ import {
 } from '@element-plus/icons-vue'
 import { setUser, session } from '@/stores/session'
 import logoApp from '@/assets/logo-app.png'
+import WindowControls from '@/components/WindowControls.vue'
 
 const RAIL_WIDTH = 56
 const MIN_WIDTH = 176
@@ -841,6 +843,16 @@ onBeforeUnmount(() => {
   background: var(--surface);
   border-bottom: 1px solid var(--rule);
   padding: 0 var(--gutter);
+  /* 自绘标题栏：整条顶栏可拖动窗口，按钮区除外 */
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+.topbar-controls {
+  -webkit-app-region: no-drag;
+  margin-left: auto;
+  color: var(--ink-3);
+  --wc-hover: rgba(16, 33, 46, 0.07);
 }
 
 .crumb {
