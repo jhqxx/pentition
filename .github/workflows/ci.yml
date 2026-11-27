@@ -62,7 +62,16 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - name: 安装依赖
+        shell: bash
+        run: |
+          set +e
+          pnpm install --frozen-lockfile 2>&1 | tee install.log
+          code=${PIPESTATUS[0]}
+          if [ $code -ne 0 ]; then
+            { echo '### pnpm install 失败（Windows）'; echo '```'; tail -80 install.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+            exit $code
+          fi
       - run: pnpm build
       - name: 打包 Windows（nsis + portable）
         run: pnpm exec electron-builder --win nsis portable --x64 --publish never
@@ -79,7 +88,7 @@ jobs:
     name: macOS 安装包 (arm64)
     needs: verify
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main'
-    runs-on: macos-14
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -89,7 +98,16 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - name: 安装依赖
+        shell: bash
+        run: |
+          set +e
+          pnpm install --frozen-lockfile 2>&1 | tee install.log
+          code=${PIPESTATUS[0]}
+          if [ $code -ne 0 ]; then
+            { echo '### pnpm install 失败（macOS）'; echo '```'; tail -80 install.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+            exit $code
+          fi
       - run: pnpm build
       - name: 打包 macOS（dmg arm64，未签名）
         run: pnpm exec electron-builder --mac --arm64 --publish never
