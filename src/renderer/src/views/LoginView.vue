@@ -353,7 +353,7 @@ async function submit(): Promise<void> {
   border-radius: 12px;
   box-shadow: 0 24px 54px rgba(23, 80, 130, 0.16);
   margin-top: -56px;
-  padding: 38px 40px 24px;
+  padding: 32px 40px 18px;
   display: flex;
   flex-direction: column;
   position: relative;
@@ -372,11 +372,11 @@ async function submit(): Promise<void> {
 }
 
 .form {
-  margin-top: 16px;
+  margin-top: 12px;
 }
 .sheet :deep(.el-form-item) {
   margin-bottom: 0;
-  margin-top: 14px;
+  margin-top: 12px;
 }
 .sheet :deep(.el-form-item__label) {
   padding: 0 0 7px;
@@ -406,7 +406,7 @@ async function submit(): Promise<void> {
   width: 100%;
 }
 .remember {
-  margin-top: 15px;
+  margin-top: 12px;
   font-size: 12.5px;
   --el-checkbox-checked-bg-color: #1f6fb2;
   --el-checkbox-checked-input-border-color: #1f6fb2;
@@ -416,7 +416,7 @@ async function submit(): Promise<void> {
 .submit {
   width: 100%;
   height: 48px;
-  margin-top: 22px;
+  margin-top: 18px;
   border-radius: 8px;
   --el-button-bg-color: #1f6fb2;
   --el-button-border-color: #1f6fb2;
@@ -434,7 +434,7 @@ async function submit(): Promise<void> {
   letter-spacing: 0.26em;
 }
 .demo {
-  margin-top: 18px;
+  margin-top: 14px;
   padding: 10px 14px;
   border: 1px solid #d9e6f0;
   border-radius: 8px;
@@ -448,13 +448,13 @@ async function submit(): Promise<void> {
   font-weight: 600;
 }
 .note {
-  margin: 12px 0 0;
+  margin: 10px 0 0;
   font-size: 11px;
   color: #6d8090;
   letter-spacing: 0.02em;
 }
 .ver {
-  margin: 14px 0 0;
+  margin: 10px 0 0;
   text-align: right;
   font-size: 10px;
   letter-spacing: 0.1em;
